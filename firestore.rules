@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidContact(data) {
+      return data.firstName is string && data.firstName.size() > 0
+        && data.lastName is string && data.lastName.size() > 0
+        && data.email is string && data.email.size() > 3
+        && data.company is string
+        && data.status in ['lead', 'qualified', 'customer', 'churned']
+        && data.ownerId is string;
+    }
+
+    function isValidDeal(data) {
+      return data.title is string && data.title.size() > 0
+        && data.company is string
+        && data.amount is number && data.amount >= 0
+        && data.probability is number && data.probability >= 0 && data.probability <= 100
+        && data.stage in ['prospection', 'qualification', 'proposition', 'negociation', 'gagne', 'perdu'];
+    }
+
+    function isValidActivity(data) {
+      return data.contactId is string && data.contactId.size() > 0
+        && data.type in ['appel', 'email', 'reunion', 'note']
+        && data.summary is string && data.summary.size() > 0
+        && data.authorName is string;
+    }
+
+    // Contacts: lecture/écriture réservées aux commerciaux authentifiés
+    match /contacts/{contactId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidContact(request.resource.data);
+      allow update: if isAuthenticated() && isValidContact(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Deals (Opportunités): lecture/écriture réservées aux utilisateurs authentifiés
+    match /deals/{dealId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidDeal(request.resource.data);
+      allow update: if isAuthenticated() && isValidDeal(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Activities (Journal commercial): append-only ou édition par utilisateurs authentifiés
+    match /activities/{activityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidActivity(request.resource.data);
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Bloquer tout autre document par défaut
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
