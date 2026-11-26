@@ -1,0 +1,40 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Lint, Type-check, Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Cloud Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Type-check (Frontend & Cloud Functions)
+        run: npm run typecheck
+
+      - name: Unit tests & coverage (ChromeHeadless)
+        run: npm run test:ci
+
+      - name: Production build (Frontend & Cloud Functions)
+        run: npm run build && npm --prefix functions run build
