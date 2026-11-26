@@ -1,8 +1,10 @@
 import { Activity, Contact, Deal } from '../models/crm.model';
 import {
+  buildMonthlyForecastLocal,
   calculateLeadScore,
   computePipelineMetrics,
   filterContactsAndDeals,
+  getLeadScoreMeta,
   groupDealsByStage,
 } from './crm-analytics.utils';
 
@@ -216,6 +218,62 @@ describe('crm-analytics.utils (pure business functions)', () => {
         authorName: 'Alice Martin',
       }));
       expect(calculateLeadScore(sampleContacts[2], manyMeetings, refDate)).toBe(100);
+    });
+  });
+
+  describe('edge cases: negative, NaN, zero, and boundary values', () => {
+    it('sanitizes negative amounts, NaN, and out-of-range probabilities in computePipelineMetrics', () => {
+      const corruptedDeals: Deal[] = [
+        {
+          id: 'bad-1',
+          title: 'Montant négatif',
+          contactId: 'c1',
+          company: 'BadCo',
+          amount: -5000,
+          probability: 150,
+          stage: 'prospection',
+          expectedCloseDate: '',
+          updatedAt: 'invalid-date',
+        },
+        {
+          id: 'bad-2',
+          title: 'NaN values',
+          contactId: 'c1',
+          company: 'BadCo',
+          amount: Number.NaN,
+          probability: -20,
+          stage: 'qualification',
+          expectedCloseDate: '',
+          updatedAt: 'invalid-date',
+        },
+      ];
+
+      const metrics = computePipelineMetrics(corruptedDeals, refDate);
+      expect(metrics.totalPipelineAmount).toBe(0);
+      expect(metrics.weightedRevenue).toBe(0);
+      expect(metrics.averageDealValue).toBe(0);
+      expect(metrics.openDealsCount).toBe(2);
+    });
+
+    it('maps lead score heat metadata across all thresholds', () => {
+      expect(getLeadScoreMeta(85).label).toBe('Chaud');
+      expect(getLeadScoreMeta(70).label).toBe('Chaud');
+      expect(getLeadScoreMeta(50).label).toBe('Tiède');
+      expect(getLeadScoreMeta(40).label).toBe('Tiède');
+      expect(getLeadScoreMeta(10).label).toBe('Froid');
+      expect(getLeadScoreMeta(0).label).toBe('Froid');
+    });
+
+    it('aggregates monthly forecast by rep and sorts descending by weightedForecast', () => {
+      const report = buildMonthlyForecastLocal(sampleDeals, sampleContacts, refDate);
+      expect(report.month).toBe('2026-11');
+      expect(report.totalPipelineAmount).toBe(50000);
+      expect(report.totalWeightedForecast).toBe(22000);
+      expect(report.totalWonAmount).toBe(30000);
+      expect(report.byRep[0].ownerId).toBe('rep-alice');
+      expect(report.byRep[0].weightedForecast).toBe(20000);
+      expect(report.byRep[1].ownerId).toBe('rep-bob');
+      expect(report.byRep[1].weightedForecast).toBe(2000);
     });
   });
 });
