@@ -1,0 +1,12 @@
+node_modules
+.angular
+.firebase
+coverage
+dist
+docs
+functions
+firebase.json
+firestore.rules
+firestore.indexes.json
+netlify.toml
+*.log
