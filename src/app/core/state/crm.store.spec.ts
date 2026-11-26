@@ -175,4 +175,42 @@ describe('CRM_STORE (critical CRM state & transition flows)', () => {
     await store.seedDemoDataToFirestore();
     expect(store.error()).toBeNull();
   });
+
+  it('rejects invalid payloads via Zod and attaches a traceable requestId in error state', async () => {
+    const badContactId = await store.addContact({
+      firstName: '',
+      lastName: 'Invalid',
+      email: 'not-an-email',
+      phone: '',
+      company: '',
+      status: 'lead',
+      ownerId: 'demo-user',
+    });
+    expect(badContactId).toBeNull();
+    expect(store.error()).toContain('réf. contact_');
+
+    store.clearError();
+    const badDealId = await store.addDeal({
+      title: 'Deal négatif',
+      contactId: 'c1',
+      company: 'Test',
+      amount: -500,
+      probability: 50,
+      stage: 'prospection',
+      expectedCloseDate: '',
+    });
+    expect(badDealId).toBeNull();
+    expect(store.error()).toContain('réf. deal_');
+
+    store.clearError();
+    const badActId = await store.addActivity({
+      contactId: 'c1',
+      dealId: null,
+      type: 'note',
+      summary: '   ',
+      authorName: 'Camille',
+    });
+    expect(badActId).toBeNull();
+    expect(store.error()).toContain('réf. act_');
+  });
 });
