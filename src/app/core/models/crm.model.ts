@@ -81,45 +81,49 @@ export const DEAL_STAGES: readonly StageMetadata[] = [
     id: 'prospection',
     label: 'Prospection',
     defaultProbability: 15,
-    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-200 dark:border-slate-600/70',
     accentClass: 'border-t-slate-400',
   },
   {
     id: 'qualification',
     label: 'Qualification',
     defaultProbability: 35,
-    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30',
     accentClass: 'border-t-sky-500',
   },
   {
     id: 'proposition',
     label: 'Proposition',
     defaultProbability: 60,
-    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30',
     accentClass: 'border-t-indigo-500',
   },
   {
     id: 'negociation',
     label: 'Négociation',
     defaultProbability: 80,
-    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30',
     accentClass: 'border-t-amber-500',
   },
   {
     id: 'gagne',
     label: 'Gagné',
     defaultProbability: 100,
-    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30',
     accentClass: 'border-t-emerald-500',
   },
   {
     id: 'perdu',
     label: 'Perdu',
     defaultProbability: 0,
-    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30',
     accentClass: 'border-t-rose-500',
   },
 ] as const;
+
+export function getStageLabel(stage: string): string {
+  return DEAL_STAGES.find((s) => s.id === stage)?.label ?? stage;
+}
 
 export const CONTACT_STATUS_LABELS: Record<ContactStatus, string> = {
   lead: 'Lead',

@@ -263,6 +263,37 @@ export function calculateLeadScore(
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+export interface LeadScoreMeta {
+  label: 'Chaud' | 'Tiède' | 'Froid';
+  barClass: string;
+  badgeClass: string;
+}
+
+/**
+ * Maps a numeric lead score (0-100) to its semantic heat label and Tailwind classes.
+ */
+export function getLeadScoreMeta(score: number): LeadScoreMeta {
+  if (score >= 70) {
+    return {
+      label: 'Chaud',
+      barClass: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
+      badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    };
+  }
+  if (score >= 40) {
+    return {
+      label: 'Tiède',
+      barClass: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
+      badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+    };
+  }
+  return {
+    label: 'Froid',
+    barClass: 'bg-gradient-to-r from-amber-400 to-orange-500',
+    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  };
+}
+
 /**
  * Pure local forecast aggregator mirroring the `calculateMonthlyForecast` Cloud Function
  * (used as a fallback when running in offline/demo mode without Firebase Functions).

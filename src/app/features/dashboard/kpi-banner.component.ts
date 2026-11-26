@@ -32,7 +32,7 @@ import { CRM_STORE } from '../../core/state/crm.store';
     <section aria-label="Indicateurs clés du pipeline" class="kpi-grid">
       <!-- Pipeline Total -->
       <article class="ds-card ds-card-interactive animate-fade-in group relative overflow-hidden p-4 sm:p-5">
-        <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 to-violet-500"></div>
+        <div class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-indigo-500 to-violet-500 dark:h-[2px] dark:opacity-80"></div>
         <div class="flex items-center justify-between gap-2">
           <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Pipeline total
@@ -56,7 +56,7 @@ import { CRM_STORE } from '../../core/state/crm.store';
 
       <!-- Revenu Pondéré -->
       <article class="ds-card ds-card-interactive animate-fade-in group relative overflow-hidden p-4 sm:p-5">
-        <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-500 to-cyan-400"></div>
+        <div class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-sky-500 to-cyan-400 dark:h-[2px] dark:opacity-80"></div>
         <div class="flex items-center justify-between gap-2">
           <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Revenu pondéré
@@ -80,7 +80,7 @@ import { CRM_STORE } from '../../core/state/crm.store';
 
       <!-- Taux de Closing -->
       <article class="ds-card ds-card-interactive animate-fade-in group relative overflow-hidden p-4 sm:p-5">
-        <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
+        <div class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-400 to-orange-500 dark:h-[2px] dark:opacity-80"></div>
         <div class="flex items-center justify-between gap-2">
           <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Taux de closing
@@ -108,13 +108,14 @@ import { CRM_STORE } from '../../core/state/crm.store';
       </article>
 
       <!-- Deals Gagnés ce Mois -->
-      <article class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-4 text-white shadow-lg shadow-emerald-600/20 transition duration-200 hover:-translate-y-0.5 sm:p-5">
-        <div class="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10 blur-xl"></div>
+      <article class="ds-card-interactive animate-fade-in group relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-4 text-white shadow-lg shadow-emerald-600/20 transition duration-200 dark:border-emerald-500/25 dark:from-[#102924] dark:via-[#122628] dark:to-[#162033] dark:shadow-none sm:p-5">
+        <div class="absolute inset-x-0 top-0 hidden h-[2px] bg-gradient-to-r from-emerald-400 to-teal-400 dark:block"></div>
+        <div class="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10 blur-2xl dark:bg-emerald-400/10"></div>
         <div class="flex items-center justify-between gap-2">
-          <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-100">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-100 dark:text-emerald-300/90">
             Gagnés ce mois
           </span>
-          <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 sm:h-9 sm:w-9">
+          <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30 sm:h-9 sm:w-9">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
             </svg>
@@ -123,8 +124,8 @@ import { CRM_STORE } from '../../core/state/crm.store';
         <p class="kpi-value mt-2.5 font-display font-extrabold tracking-tight text-white tabular-nums sm:mt-3">
           {{ m.wonThisMonthAmount | currency:'EUR':'symbol':'1.0-0':'fr' }}
         </p>
-        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-100 sm:mt-2.5">
-          <span class="inline-flex items-center rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-100 dark:text-slate-400 sm:mt-2.5">
+          <span class="inline-flex items-center rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white dark:bg-emerald-500/20 dark:text-emerald-300 tabular-nums">
             {{ m.wonThisMonthCount }} deal{{ m.wonThisMonthCount > 1 ? 's' : '' }}
           </span>
           <span>signé{{ m.wonThisMonthCount > 1 ? 's' : '' }} sur la période</span>

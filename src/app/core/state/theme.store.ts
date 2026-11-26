@@ -31,10 +31,6 @@ export class ThemeStore {
     this._mode.set(this.isDark() ? 'light' : 'dark');
   }
 
-  setMode(mode: ThemeMode): void {
-    this._mode.set(mode);
-  }
-
   private resolveInitialTheme(): ThemeMode {
     if (typeof window === 'undefined') return 'light';
     try {

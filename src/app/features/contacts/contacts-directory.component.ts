@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CONTACT_STATUS_LABELS, Contact, ContactStatus } from '../../core/models/crm.model';
 import { CRM_STORE } from '../../core/state/crm.store';
+import { getLeadScoreMeta } from '../../core/utils/crm-analytics.utils';
 
 type StatusFilter = ContactStatus | 'all';
 type ContactsViewMode = 'cards' | 'table';
@@ -183,6 +184,7 @@ const AVATAR_GRADIENTS = [
         <div class="contacts-cards-grid">
           @for (contact of displayedContacts(); track contact.id) {
             @let score = store.leadScores().get(contact.id) ?? 0;
+            @let scoreMeta = getLeadScoreMeta(score);
             <article
               (click)="store.selectContact(contact.id)"
               [class]="store.selectedContactId() === contact.id
@@ -209,25 +211,25 @@ const AVATAR_GRADIENTS = [
                 <span class="shrink-0">
                   @switch (contact.status) {
                     @case ('customer') {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200/80">
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30">
                         <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                         {{ statusLabels[contact.status] }}
                       </span>
                     }
                     @case ('qualified') {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200/80">
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/30">
                         <span class="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
                         {{ statusLabels[contact.status] }}
                       </span>
                     }
                     @case ('lead') {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200/80">
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/30">
                         <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                         {{ statusLabels[contact.status] }}
                       </span>
                     }
                     @default {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200/80">
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200/80 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30">
                         <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
                         {{ statusLabels[contact.status] }}
                       </span>
@@ -265,9 +267,9 @@ const AVATAR_GRADIENTS = [
                     <span class="font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ score }}/100</span>
                     <span
                       class="rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
-                      [class]="score >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : score >= 40 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'"
+                      [class]="scoreMeta.badgeClass"
                     >
-                      {{ score >= 70 ? 'Chaud' : score >= 40 ? 'Tiède' : 'Froid' }}
+                      {{ scoreMeta.label }}
                     </span>
                   </div>
                 </div>
@@ -275,7 +277,7 @@ const AVATAR_GRADIENTS = [
                   <div
                     class="h-full rounded-full transition-all duration-300"
                     [style.width.%]="score"
-                    [class]="score >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : score >= 40 ? 'bg-gradient-to-r from-indigo-400 to-indigo-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'"
+                    [class]="scoreMeta.barClass"
                   ></div>
                 </div>
               </div>
@@ -408,6 +410,7 @@ export class ContactsDirectoryComponent {
   private readonly fb = inject(NonNullableFormBuilder);
 
   readonly statusLabels = CONTACT_STATUS_LABELS;
+  readonly getLeadScoreMeta = getLeadScoreMeta;
   readonly showQuickAdd = signal(false);
   readonly statusFilter = signal<StatusFilter>('all');
   readonly viewMode = signal<ContactsViewMode>('cards');

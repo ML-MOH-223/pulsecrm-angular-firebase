@@ -1,6 +1,6 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { DEAL_STAGES, Deal, DealStage } from '../../core/models/crm.model';
+import { DEAL_STAGES, Deal, DealStage, getStageLabel } from '../../core/models/crm.model';
 import { CRM_STORE } from '../../core/state/crm.store';
 import { DealFormModalComponent } from './deal-form-modal.component';
 
@@ -66,14 +66,14 @@ const STAGE_DOT_CLASS: Record<DealStage, string> = {
         @for (col of store.kanbanColumns(); track col.stage.id) {
           <section
             [class]="dragOverStage() === col.stage.id
-              ? 'flex flex-col rounded-2xl bg-indigo-50/70 p-2.5 ring-2 ring-indigo-500 transition dark:bg-indigo-950/40'
-              : 'flex flex-col rounded-2xl bg-slate-200/50 p-2.5 ring-1 ring-slate-900/5 transition dark:bg-slate-800/40 dark:ring-slate-700/60'"
+              ? 'flex flex-col rounded-2xl bg-indigo-50/70 p-2.5 ring-2 ring-indigo-500 transition dark:bg-indigo-950/35'
+              : 'flex flex-col rounded-2xl bg-slate-200/50 p-2.5 ring-1 ring-slate-900/5 transition dark:bg-[#111a2e] dark:ring-white/[0.06]'"
             (dragover)="onDragOver($event, col.stage.id)"
             (dragleave)="onDragLeave(col.stage.id)"
             (drop)="onDrop($event, col.stage.id)"
           >
             <!-- Column Header -->
-            <header class="mb-2.5 rounded-xl bg-white px-3.5 py-2.5 shadow-2xs ring-1 ring-slate-900/5 dark:bg-[#162033] dark:ring-slate-700/70">
+            <header class="mb-2.5 rounded-xl bg-white px-3.5 py-2.5 shadow-2xs ring-1 ring-slate-900/5 dark:bg-transparent dark:px-2 dark:py-1.5 dark:shadow-none dark:ring-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex min-w-0 items-center gap-2">
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" [class]="getStageDot(col.stage.id)"></span>
@@ -241,9 +241,7 @@ export class PipelineKanbanComponent {
     return contact ? `${contact.firstName} ${contact.lastName}` : 'Voir contact';
   }
 
-  getStageLabel(stage: DealStage): string {
-    return DEAL_STAGES.find((s) => s.id === stage)?.label ?? stage;
-  }
+  readonly getStageLabel = getStageLabel;
 
   getNextStage(current: DealStage): DealStage | null {
     const progression: DealStage[] = [

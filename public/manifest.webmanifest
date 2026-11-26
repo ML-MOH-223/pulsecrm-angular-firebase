@@ -4,14 +4,14 @@
   "description": "CRM collaboratif temps réel pour le suivi du pipeline commercial et des clients.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
+  "background_color": "#0d1424",
+  "theme_color": "#0ea5e9",
   "lang": "fr",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "48x48",
-      "type": "image/x-icon"
+      "src": "pulsecrm-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
     }
   ]
 }

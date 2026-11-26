@@ -1,4 +1,4 @@
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { AuthStore } from './core/auth/auth.store';
 import { DEAL_STAGES, DealStage } from './core/models/crm.model';
@@ -18,6 +18,7 @@ type ActiveTab = 'pipeline' | 'contacts';
   standalone: true,
   imports: [
     CurrencyPipe,
+    NgTemplateOutlet,
     KpiBannerComponent,
     PipelineKanbanComponent,
     ContactsDirectoryComponent,
@@ -28,14 +29,16 @@ type ActiveTab = 'pipeline' | 'contacts';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (authStore.loading()) {
-      <div class="flex min-h-screen flex-col items-center justify-center bg-[#f4f6fa] px-4 text-center dark:bg-[#0f172a]">
-        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25">
-          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-          </svg>
-        </div>
+      <div class="flex min-h-screen flex-col items-center justify-center bg-[#f4f6fa] px-4 text-center dark:bg-[#0d1424]">
+        <img
+          src="pulsecrm-icon.png"
+          alt="PulseCRM"
+          width="52"
+          height="52"
+          class="mb-4 h-14 w-14 rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-900/10"
+        />
         <div class="flex items-center gap-2.5 text-sm font-medium text-slate-600 dark:text-slate-300">
-          <span class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></span>
+          <span class="h-4 w-4 animate-spin rounded-full border-2 border-sky-500 border-t-transparent"></span>
           <span>Chargement de votre espace PulseCRM...</span>
         </div>
       </div>
@@ -43,193 +46,8 @@ type ActiveTab = 'pipeline' | 'contacts';
       <app-auth-modal />
     } @else {
       <div class="flex min-h-screen w-full overflow-x-clip bg-[#f4f6fa] text-slate-900 transition-colors duration-200 dark:bg-[#0f172a] dark:text-slate-100">
-        <!-- Mobile Slide-Over Navigation Drawer -->
-        @if (mobileMenuOpen()) {
-          <div
-            class="fixed inset-0 z-50 flex lg:hidden"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Menu de navigation"
-          >
-            <div
-              class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
-              (click)="mobileMenuOpen.set(false)"
-            ></div>
-
-            <aside class="relative z-10 flex h-[100dvh] w-72 max-w-[85vw] flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300 shadow-2xl">
-              <div class="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
-                <div class="flex items-center gap-2.5">
-                  <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                    </svg>
-                  </div>
-                  <div class="min-w-0">
-                    <span class="font-display text-sm font-bold tracking-tight text-white">PulseCRM</span>
-                    <div class="flex items-center gap-1.5">
-                      @if (store.syncMode() === 'firestore') {
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                        <span class="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
-                          Synchronisé
-                        </span>
-                      } @else {
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                        <span class="text-[9px] font-semibold uppercase tracking-wider text-amber-400">
-                          Mode Démo
-                        </span>
-                      }
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  (click)="mobileMenuOpen.set(false)"
-                  aria-label="Fermer le menu"
-                  class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-                >
-                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Navigation mobile">
-                <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                  Espace Commercial
-                </p>
-
-                <button
-                  type="button"
-                  (click)="selectTab('pipeline')"
-                  [class]="activeTab() === 'pipeline'
-                    ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
-                    : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
-                >
-                  <span class="flex items-center gap-3">
-                    <svg class="h-4 w-4" [class]="activeTab() === 'pipeline' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                    </svg>
-                    Pipeline Kanban
-                  </span>
-                  <span class="rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
-                    {{ store.deals().length }}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  (click)="selectTab('contacts')"
-                  [class]="activeTab() === 'contacts'
-                    ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
-                    : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
-                >
-                  <span class="flex items-center gap-3">
-                    <svg class="h-4 w-4" [class]="activeTab() === 'contacts' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                    </svg>
-                    Contacts
-                  </span>
-                  <span class="rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
-                    {{ store.contacts().length }}
-                  </span>
-                </button>
-
-                <div class="pt-4">
-                  <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                    Analytique & Cloud
-                  </p>
-                  <button
-                    type="button"
-                    (click)="openForecastFromMobile()"
-                    class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-                  >
-                    <svg class="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                    </svg>
-                    Prévisions mensuelles
-                  </button>
-
-                  @if (store.syncMode() === 'firestore' && store.deals().length === 0) {
-                    <button
-                      type="button"
-                      (click)="seedFromMobile()"
-                      class="mt-1 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 px-3 py-2.5 text-xs font-medium text-indigo-300 transition hover:border-indigo-500 hover:bg-indigo-500/10"
-                    >
-                      Importer données démo
-                    </button>
-                  }
-                </div>
-
-                <div class="pt-4">
-                  <div class="rounded-xl border border-slate-800/90 bg-slate-900/70 p-3.5">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      Revenu pondéré actif
-                    </p>
-                    <p class="mt-1 font-display text-lg font-bold text-white tabular-nums">
-                      {{ store.pipelineMetrics().weightedRevenue | currency:'EUR':'symbol':'1.0-0':'fr' }}
-                    </p>
-                  </div>
-                </div>
-              </nav>
-
-              <div class="space-y-2 border-t border-slate-800/80 p-3.5">
-                <div class="flex items-center gap-2.5 rounded-xl bg-slate-900/80 p-2.5">
-                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold uppercase text-white">
-                    {{ getUserInitials() }}
-                  </span>
-                  <div class="min-w-0">
-                    <p class="truncate text-xs font-semibold text-white">
-                      {{ authStore.user()?.displayName }}
-                    </p>
-                    <p class="truncate text-[10px] text-slate-400">
-                      {{ authStore.user()?.email || 'Session démo' }}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  (click)="signOutFromMobile()"
-                  class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
-                >
-                  Se déconnecter
-                </button>
-              </div>
-            </aside>
-          </div>
-        }
-
-        <!-- Desktop Obsidian Sidebar (sticky 100dvh so Logout is always visible without scrolling) -->
-        <aside class="hidden lg:sticky lg:top-0 lg:flex lg:h-[100dvh] lg:w-64 lg:shrink-0 lg:flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300">
-          <!-- Brand Header -->
-          <div class="flex h-16 items-center gap-3 border-b border-slate-800/80 px-5">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-              </svg>
-            </div>
-            <div class="min-w-0">
-              <span class="font-display text-base font-bold tracking-tight text-white">PulseCRM</span>
-              <div class="flex items-center gap-1.5">
-                @if (store.syncMode() === 'firestore') {
-                  <span class="relative flex h-2 w-2">
-                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                  </span>
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
-                    Synchronisé
-                  </span>
-                } @else {
-                  <span class="h-2 w-2 rounded-full bg-amber-400"></span>
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-                    Mode Démo Local
-                  </span>
-                }
-              </div>
-            </div>
-          </div>
-
-          <!-- Primary Navigation -->
+        <!-- Shared Sidebar Navigation & Profile Template -->
+        <ng-template #sidebarBody>
           <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Navigation principale">
             <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
               Espace Commercial
@@ -237,7 +55,7 @@ type ActiveTab = 'pipeline' | 'contacts';
 
             <button
               type="button"
-              (click)="activeTab.set('pipeline')"
+              (click)="selectTab('pipeline')"
               [class]="activeTab() === 'pipeline'
                 ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
                 : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
@@ -259,7 +77,7 @@ type ActiveTab = 'pipeline' | 'contacts';
 
             <button
               type="button"
-              (click)="activeTab.set('contacts')"
+              (click)="selectTab('contacts')"
               [class]="activeTab() === 'contacts'
                 ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
                 : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
@@ -298,7 +116,7 @@ type ActiveTab = 'pipeline' | 'contacts';
               @if (store.syncMode() === 'firestore' && store.deals().length === 0) {
                 <button
                   type="button"
-                  (click)="store.seedDemoDataToFirestore()"
+                  (click)="seedDemoData()"
                   class="mt-1 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 px-3 py-2.5 text-xs font-medium text-indigo-300 transition hover:border-indigo-500 hover:bg-indigo-500/10"
                 >
                   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -309,7 +127,6 @@ type ActiveTab = 'pipeline' | 'contacts';
               }
             </div>
 
-            <!-- Compact Live Summary Card inside Sidebar -->
             <div class="pt-5">
               <div class="rounded-xl border border-slate-800/90 bg-slate-900/70 p-3.5">
                 <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -325,7 +142,6 @@ type ActiveTab = 'pipeline' | 'contacts';
             </div>
           </nav>
 
-          <!-- User Profile Footer -->
           <div class="space-y-2 border-t border-slate-800/80 p-3.5">
             <div class="flex items-center gap-2.5 rounded-xl bg-slate-900/80 p-2.5">
               <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold uppercase text-white">
@@ -342,7 +158,7 @@ type ActiveTab = 'pipeline' | 'contacts';
             </div>
             <button
               type="button"
-              (click)="authStore.signOut()"
+              (click)="signOut()"
               class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs font-medium text-slate-400 transition hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
             >
               <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -351,12 +167,104 @@ type ActiveTab = 'pipeline' | 'contacts';
               Se déconnecter
             </button>
           </div>
+        </ng-template>
+
+        <!-- Mobile Slide-Over Navigation Drawer -->
+        @if (mobileMenuOpen()) {
+          <div
+            class="fixed inset-0 z-50 flex lg:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu de navigation"
+          >
+            <div
+              class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+              (click)="mobileMenuOpen.set(false)"
+            ></div>
+
+            <aside class="relative z-10 flex h-[100dvh] w-72 max-w-[85vw] flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300 shadow-2xl">
+              <div class="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
+                <div class="flex items-center gap-2.5">
+                  <img
+                    src="pulsecrm-icon.png"
+                    alt="PulseCRM"
+                    width="34"
+                    height="34"
+                    class="h-8 w-8 rounded-xl bg-white p-0.5 shadow-md"
+                  />
+                  <div class="min-w-0">
+                    <span class="font-display text-sm font-bold tracking-tight text-white">PulseCRM</span>
+                    <div class="flex items-center gap-1.5">
+                      @if (store.syncMode() === 'firestore') {
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                        <span class="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
+                          Synchronisé
+                        </span>
+                      } @else {
+                        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                        <span class="text-[9px] font-semibold uppercase tracking-wider text-amber-400">
+                          Mode Démo
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  (click)="mobileMenuOpen.set(false)"
+                  aria-label="Fermer le menu"
+                  class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                >
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <ng-container *ngTemplateOutlet="sidebarBody" />
+            </aside>
+          </div>
+        }
+
+        <!-- Desktop Obsidian Sidebar (sticky 100dvh so Logout is always visible without scrolling) -->
+        <aside class="hidden lg:sticky lg:top-0 lg:flex lg:h-[100dvh] lg:w-64 lg:shrink-0 lg:flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300">
+          <div class="flex h-16 items-center gap-3 border-b border-slate-800/80 px-5">
+            <img
+              src="pulsecrm-icon.png"
+              alt="PulseCRM"
+              width="38"
+              height="38"
+              class="h-9 w-9 rounded-xl bg-white p-0.5 shadow-md"
+            />
+            <div class="min-w-0">
+              <span class="font-display text-base font-bold tracking-tight text-white">PulseCRM</span>
+              <div class="flex items-center gap-1.5">
+                @if (store.syncMode() === 'firestore') {
+                  <span class="relative flex h-2 w-2">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                  </span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                    Synchronisé
+                  </span>
+                } @else {
+                  <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                    Mode Démo Local
+                  </span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <ng-container *ngTemplateOutlet="sidebarBody" />
         </aside>
 
         <!-- Right Main Workspace -->
         <div class="flex min-w-0 flex-1 flex-col">
           <!-- Sticky Top Command Bar -->
-          <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-colors duration-200 dark:border-slate-800 dark:bg-[#162033]/90">
+          <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-colors duration-200 dark:border-white/[0.06] dark:bg-[#0d1424]/85">
             <div class="mx-auto flex max-w-[1600px] flex-col gap-2.5 px-3.5 py-2.5 sm:px-6 sm:py-3 lg:flex-row lg:items-center lg:justify-between lg:px-8">
               <!-- Top Row on Mobile: Hamburger + Title + Dark Mode Toggle -->
               <div class="flex items-center justify-between gap-2">
@@ -743,21 +651,17 @@ export class AppComponent {
   }
 
   async openForecast(): Promise<void> {
+    this.mobileMenuOpen.set(false);
     this.showForecastModal.set(true);
     await this.store.requestMonthlyForecast();
   }
 
-  async openForecastFromMobile(): Promise<void> {
-    this.mobileMenuOpen.set(false);
-    await this.openForecast();
-  }
-
-  async seedFromMobile(): Promise<void> {
+  async seedDemoData(): Promise<void> {
     this.mobileMenuOpen.set(false);
     await this.store.seedDemoDataToFirestore();
   }
 
-  async signOutFromMobile(): Promise<void> {
+  async signOut(): Promise<void> {
     this.mobileMenuOpen.set(false);
     await this.authStore.signOut();
   }

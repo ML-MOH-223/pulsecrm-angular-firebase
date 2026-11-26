@@ -23,12 +23,11 @@ import { AuthStore } from '../../core/auth/auth.store';
         <div class="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-violet-600/20 blur-3xl"></div>
 
         <div class="relative flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-            </svg>
-          </div>
-          <span class="font-display text-xl font-bold tracking-tight">PulseCRM</span>
+          <img
+            src="pulsecrm-logo.png"
+            alt="PulseCRM — Customer Relationship Platform"
+            class="h-11 w-auto rounded-xl bg-white px-3 py-1.5 shadow-lg"
+          />
         </div>
 
         <div class="relative max-w-md space-y-5">
@@ -60,11 +59,11 @@ import { AuthStore } from '../../core/auth/auth.store';
       <div class="flex flex-1 min-h-screen items-center justify-center p-4 sm:p-10">
         <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-card ring-1 ring-slate-900/5 dark:bg-[#162033] dark:ring-slate-700/70 sm:p-8">
           <div class="text-center lg:text-left">
-            <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md lg:hidden">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-              </svg>
-            </div>
+            <img
+              src="pulsecrm-logo.png"
+              alt="PulseCRM"
+              class="mx-auto mb-4 h-11 w-auto rounded-xl bg-white px-2.5 py-1 shadow-sm ring-1 ring-slate-900/5 lg:hidden"
+            />
             <h1 class="font-display text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
               {{ mode() === 'login' ? 'Bon retour sur PulseCRM' : 'Créer votre espace' }}
             </h1>

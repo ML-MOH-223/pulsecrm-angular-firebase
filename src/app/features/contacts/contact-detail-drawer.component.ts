@@ -5,9 +5,10 @@ import {
   ACTIVITY_TYPE_LABELS,
   ActivityType,
   ContactStatus,
-  DEAL_STAGES,
+  getStageLabel,
 } from '../../core/models/crm.model';
 import { CRM_STORE } from '../../core/state/crm.store';
+import { getLeadScoreMeta } from '../../core/utils/crm-analytics.utils';
 
 const STATUS_OPTIONS: readonly { id: ContactStatus; label: string }[] = [
   { id: 'lead', label: 'Lead' },
@@ -27,6 +28,7 @@ const STATUS_OPTIONS: readonly { id: ContactStatus; label: string }[] = [
   template: `
     @if (store.selectedContact(); as contact) {
       @let score = store.leadScores().get(contact.id) ?? 0;
+      @let scoreMeta = getLeadScoreMeta(score);
       <div
         class="fixed inset-0 z-40 flex justify-end bg-slate-950/40 backdrop-blur-xs"
         (click)="store.selectContact(null)"
@@ -80,7 +82,7 @@ const STATUS_OPTIONS: readonly { id: ContactStatus; label: string }[] = [
                 </span>
                 <span
                   class="rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums"
-                  [class]="score >= 70 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' : score >= 40 ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'"
+                  [class]="scoreMeta.badgeClass"
                 >
                   Lead Score : {{ score }}/100
                 </span>
@@ -104,7 +106,7 @@ const STATUS_OPTIONS: readonly { id: ContactStatus; label: string }[] = [
                 <div
                   class="h-full rounded-full transition-all duration-300"
                   [style.width.%]="score"
-                  [class]="score >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : score >= 40 ? 'bg-gradient-to-r from-indigo-400 to-indigo-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'"
+                  [class]="scoreMeta.barClass"
                 ></div>
               </div>
             </div>
@@ -242,9 +244,8 @@ export class ContactDetailDrawerComponent {
     summary: ['', [Validators.required, Validators.minLength(3)]],
   });
 
-  getStageLabel(stage: string): string {
-    return DEAL_STAGES.find((s) => s.id === stage)?.label ?? stage;
-  }
+  readonly getStageLabel = getStageLabel;
+  readonly getLeadScoreMeta = getLeadScoreMeta;
 
   getActivityDotClass(type: ActivityType): string {
     switch (type) {

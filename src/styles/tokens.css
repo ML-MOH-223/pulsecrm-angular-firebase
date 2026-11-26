@@ -93,42 +93,42 @@
   --skeleton-highlight: #f8fafc;
 }
 
-/* Dark Theme — Rich Slate Navy (NO pure #000000 black) */
+/* Dark Theme — Refined Midnight Slate (Linear / Attio inspired, NO pure #000000) */
 :root.dark {
   color-scheme: dark;
 
-  --surface-canvas: #0f172a;
+  --surface-canvas: #0d1424;
   --surface-card: #162033;
-  --surface-elevated: #1e293b;
-  --surface-muted: #1b273c;
-  --surface-hover: #24324a;
-  --border-subtle: rgba(148, 163, 184, 0.14);
-  --border-strong: #334155;
+  --surface-elevated: #1c2840;
+  --surface-muted: #131c2e;
+  --surface-hover: #21304b;
+  --border-subtle: rgba(148, 163, 184, 0.12);
+  --border-strong: rgba(148, 163, 184, 0.22);
 
   --text-primary: #f1f5f9;
   --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --text-muted: #8b9bb4;
 
   --color-success-bg: rgba(16, 185, 129, 0.14);
   --color-success-text: #6ee7b7;
-  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-success-border: rgba(16, 185, 129, 0.28);
 
   --color-warning-bg: rgba(245, 158, 11, 0.14);
   --color-warning-text: #fcd34d;
-  --color-warning-border: rgba(245, 158, 11, 0.3);
+  --color-warning-border: rgba(245, 158, 11, 0.28);
 
   --color-danger-bg: rgba(244, 63, 94, 0.14);
   --color-danger-text: #fda4af;
-  --color-danger-border: rgba(244, 63, 94, 0.3);
+  --color-danger-border: rgba(244, 63, 94, 0.28);
 
   --color-info-bg: rgba(14, 165, 233, 0.14);
   --color-info-text: #7dd3fc;
-  --color-info-border: rgba(14, 165, 233, 0.3);
+  --color-info-border: rgba(14, 165, 233, 0.28);
 
-  --shadow-card: 0 2px 6px 0 rgb(2 6 23 / 0.32), 0 8px 20px -6px rgb(2 6 23 / 0.38);
-  --shadow-card-hover: 0 8px 24px -4px rgb(2 6 23 / 0.5), 0 0 0 1px rgb(99 102 241 / 0.35);
-  --shadow-modal: 0 28px 60px -12px rgb(2 6 23 / 0.65);
+  --shadow-card: inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 4px 16px -4px rgb(2 6 23 / 0.45);
+  --shadow-card-hover: inset 0 1px 0 0 rgba(255, 255, 255, 0.07), 0 10px 26px -6px rgb(2 6 23 / 0.6), 0 0 0 1px rgb(99 102 241 / 0.35);
+  --shadow-modal: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 28px 60px -12px rgb(2 6 23 / 0.72);
 
-  --skeleton-base: #1e293b;
-  --skeleton-highlight: #2d3d57;
+  --skeleton-base: #1a253c;
+  --skeleton-highlight: #253452;
 }
