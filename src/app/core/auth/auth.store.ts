@@ -3,11 +3,13 @@ import {
   GoogleAuthProvider,
   User,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInAnonymously as firebaseSignInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   updateProfile,
 } from 'firebase/auth';
@@ -65,6 +67,10 @@ export class AuthStore {
       return;
     }
 
+    getRedirectResult(this.firebase.auth).catch((err) => {
+      this._error.set(this.formatAuthError(err));
+    });
+
     const unsubscribe = onAuthStateChanged(
       this.firebase.auth,
       (fbUser) => {
@@ -100,6 +106,12 @@ export class AuthStore {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(this.firebase.auth, provider);
     } catch (err) {
+      const code = (err as { code?: string })?.code ?? '';
+      if (code === 'auth/popup-blocked') {
+        const provider = new GoogleAuthProvider();
+        await signInWithRedirect(this.firebase.auth, provider);
+        return;
+      }
       this._error.set(this.formatAuthError(err));
     } finally {
       this._loading.set(false);
@@ -247,6 +259,8 @@ export class AuthStore {
         'Connexion Internet indisponible. Vérifiez votre réseau et réessayez.',
       'auth/operation-not-allowed':
         'Cette méthode de connexion n’est pas encore activée. Essayez par email ou avec Google.',
+      'auth/unauthorized-domain':
+        `Ce domaine (${typeof window !== 'undefined' ? window.location.hostname : 'actuel'}) n’est pas autorisé dans Firebase Auth. Ajoutez-le dans Firebase Console → Authentication → Settings → Authorized domains.`,
     };
 
     if (code && messages[code]) {
