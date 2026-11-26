@@ -166,6 +166,7 @@ export interface RepForecast {
 }
 
 export interface MonthlyForecastReport {
+  requestId?: string;
   month: string; // YYYY-MM
   generatedAt: string;
   totalPipelineAmount: number;

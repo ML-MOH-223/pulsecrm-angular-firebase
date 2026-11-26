@@ -14,7 +14,7 @@ import {
   connectFunctionsEmulator,
   getFunctions,
 } from 'firebase/functions';
-import { environment } from '../../../environments/environment';
+import { appEnv, isFirebaseConfigReady } from '../config/env';
 import { logger } from '../observability/logger';
 
 @Injectable({ providedIn: 'root' })
@@ -26,18 +26,8 @@ export class FirebaseService {
   readonly functions: Functions | null = null;
 
   constructor() {
-    const cfg = environment.firebase;
-    this.isConfigured = Boolean(
-      cfg.apiKey &&
-        cfg.projectId &&
-        cfg.appId &&
-        !cfg.apiKey.startsWith('YOUR_') &&
-        !cfg.apiKey.startsWith('VOTRE_') &&
-        !cfg.projectId.startsWith('YOUR_') &&
-        !cfg.projectId.startsWith('VOTRE_') &&
-        !cfg.appId.startsWith('YOUR_') &&
-        !cfg.appId.startsWith('VOTRE_')
-    );
+    const cfg = appEnv.firebase;
+    this.isConfigured = isFirebaseConfigReady(cfg);
 
     if (!this.isConfigured) {
       return;
@@ -69,7 +59,7 @@ export class FirebaseService {
 
     this.functions = getFunctions(this.app, 'europe-west1');
 
-    if (environment.useEmulators) {
+    if (appEnv.useEmulators) {
       connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
       connectFirestoreEmulator(this.db, '127.0.0.1', 8080);
       connectFunctionsEmulator(this.functions, '127.0.0.1', 5001);

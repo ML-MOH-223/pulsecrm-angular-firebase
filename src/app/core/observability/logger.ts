@@ -99,16 +99,24 @@ class StructuredLogger {
     };
   }
 
-  private emit(level: LogLevel, message: string, ctx: LogContext, err?: unknown): void {
-    const { requestId, userId, organizationId, module, durationMs, ...rest } = ctx;
+  private buildMergedData(
+    rest: Record<string, unknown>,
+    err: unknown,
+    appErr: AppError | null
+  ): Record<string, unknown> | undefined {
     const redactedRest =
       Object.keys(rest).length > 0
         ? (redactSensitiveData(rest) as Record<string, unknown>)
         : undefined;
-
-    const appErr = err instanceof AppError ? err : null;
     const errorData = this.buildErrorData(err, appErr);
-    const mergedData = redactedRest || errorData ? { ...(redactedRest ?? {}), ...(errorData ?? {}) } : undefined;
+    if (!redactedRest && !errorData) return undefined;
+    return { ...(redactedRest ?? {}), ...(errorData ?? {}) };
+  }
+
+  private emit(level: LogLevel, message: string, ctx: LogContext, err?: unknown): void {
+    const { requestId, userId, organizationId, module, durationMs, ...rest } = ctx;
+    const appErr = err instanceof AppError ? err : null;
+    const mergedData = this.buildMergedData(rest, err, appErr);
 
     const entry: StructuredLogEntry = {
       timestamp: new Date().toISOString(),

@@ -19,6 +19,13 @@ import { FirebaseService } from '../firebase/firebase.service';
 import { logger } from '../observability/logger';
 import { createRequestId } from '../observability/request-id';
 import {
+  MonthlyForecastReportSchema,
+  NewActivityPayloadSchema,
+  NewContactPayloadSchema,
+  NewDealPayloadSchema,
+  parseWithSchema,
+} from '../schemas/crm.schemas';
+import {
   Activity,
   Contact,
   DEAL_STAGES,
@@ -327,19 +334,29 @@ export function useCrmStore() {
 
   // CRUD actions
   const addContact = async (payload: NewContactPayload): Promise<string | null> => {
+    const requestId = createRequestId('contact');
+    let validated: NewContactPayload;
+    try {
+      validated = parseWithSchema(NewContactPayloadSchema, payload, requestId, 'Contact');
+    } catch (err) {
+      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
+      logger.warn('Contact validation failed', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      return null;
+    }
+
     const now = new Date().toISOString();
-    const ownerId = payload.ownerId || authStore.user()?.uid || 'demo-user';
-    const record = { ...payload, ownerId, createdAt: now };
+    const ownerId = validated.ownerId || authStore.user()?.uid || 'demo-user';
+    const record = { ...validated, ownerId, createdAt: now };
 
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('contact');
       _contacts.update((list) => [{ id, ...record }, ...list]);
-      showToast(`Contact ${payload.firstName} ${payload.lastName} ajouté.`);
+      showToast(`Contact ${validated.firstName} ${validated.lastName} ajouté.`);
       return id;
     }
 
     _saving.set(true);
-    const requestId = createRequestId('contact');
     const startedAt = performance.now();
     try {
       const ref = await addDoc(collection(firebase.db, 'contacts'), record);
@@ -349,7 +366,7 @@ export function useCrmStore() {
         contactId: ref.id,
         durationMs: performance.now() - startedAt,
       });
-      showToast(`Contact ${payload.firstName} ${payload.lastName} ajouté.`);
+      showToast(`Contact ${validated.firstName} ${validated.lastName} ajouté.`);
       return ref.id;
     } catch (err) {
       const appErr = normalizeError(err, {
@@ -430,28 +447,38 @@ export function useCrmStore() {
   };
 
   const addDeal = async (payload: NewDealPayload): Promise<string | null> => {
+    const requestId = createRequestId('deal');
+    let validated: NewDealPayload;
+    try {
+      validated = parseWithSchema(NewDealPayloadSchema, payload, requestId, 'Deal');
+    } catch (err) {
+      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
+      logger.warn('Deal validation failed', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      return null;
+    }
+
     const now = new Date().toISOString();
     const currentUser = authStore.user();
     const record = {
-      ...payload,
-      ownerId: payload.ownerId || currentUser?.uid || 'demo-user',
-      ownerName: payload.ownerName || currentUser?.displayName || 'Commercial',
+      ...validated,
+      ownerId: validated.ownerId || currentUser?.uid || 'demo-user',
+      ownerName: validated.ownerName || currentUser?.displayName || 'Commercial',
       updatedAt: now,
     };
 
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('deal');
       _deals.update((list) => [{ id, ...record }, ...list]);
-      showToast(`Opportunité « ${payload.title} » créée.`);
+      showToast(`Opportunité « ${validated.title} » créée.`);
       return id;
     }
 
     _saving.set(true);
-    const requestId = createRequestId('deal');
     try {
       const ref = await addDoc(collection(firebase.db, 'deals'), record);
       logger.info('Deal created', { module: 'CrmStore', requestId, dealId: ref.id });
-      showToast(`Opportunité « ${payload.title} » créée.`);
+      showToast(`Opportunité « ${validated.title} » créée.`);
       return ref.id;
     } catch (err) {
       const appErr = normalizeError(err, {
@@ -573,12 +600,23 @@ export function useCrmStore() {
   };
 
   const addActivity = async (payload: NewActivityPayload): Promise<string | null> => {
+    const requestId = createRequestId('act');
+    let validated: NewActivityPayload;
+    try {
+      validated = parseWithSchema(NewActivityPayloadSchema, payload, requestId, 'Activity');
+    } catch (err) {
+      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
+      logger.warn('Activity validation failed', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      return null;
+    }
+
     const now = new Date().toISOString();
     const currentUser = authStore.user();
     const record = {
-      ...payload,
-      ownerId: payload.ownerId || currentUser?.uid || 'demo-user',
-      authorName: payload.authorName || currentUser?.displayName || 'Commercial',
+      ...validated,
+      ownerId: validated.ownerId || currentUser?.uid || 'demo-user',
+      authorName: validated.authorName || currentUser?.displayName || 'Commercial',
       createdAt: now,
     };
 
@@ -590,7 +628,6 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
-    const requestId = createRequestId('act');
     try {
       const ref = await addDoc(collection(firebase.db, 'activities'), record);
       logger.info('Activity created', { module: 'CrmStore', requestId, activityId: ref.id });
@@ -623,13 +660,19 @@ export function useCrmStore() {
           'calculateMonthlyForecast'
         );
         const result = await callable({ requestId });
+        const validatedReport = parseWithSchema(
+          MonthlyForecastReportSchema,
+          result.data,
+          requestId,
+          'MonthlyForecastReport'
+        );
         logger.info('Cloud monthly forecast succeeded', {
           module: 'CrmStore',
           requestId,
           durationMs: performance.now() - startedAt,
         });
-        _forecastReport.set(result.data);
-        return result.data;
+        _forecastReport.set(validatedReport);
+        return validatedReport;
       }
 
       const localReport = buildMonthlyForecastLocal(_deals(), _contacts());
