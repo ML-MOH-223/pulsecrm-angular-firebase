@@ -1,59 +1,52 @@
-# PulseCrm
+# PulseCRM — Angular 19 & Firebase
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.27.
+CRM B2B temps réel conçu avec **Angular 19.2** (Standalone Components, Signals, Tailwind CSS v3) et **Firebase v11** (Authentication, Cloud Firestore avec cache hors-ligne persistant, Cloud Functions v2), déployé sur **Vercel**.
 
-## Development server
+---
 
-To start a local development server, run:
+## Prérequis
 
-```bash
-ng serve
-```
+- **Node.js** : `22.x` (`node -v`)
+- **npm** : `10+`
+- **Google Chrome** (pour `npm run test:ci` via Karma `ChromeHeadless`)
+- Optionnel : **Firebase CLI** (`npm i -g firebase-tools`) pour déployer `firestore.rules` et `functions/`
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+---
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Installation & Démarrage
 
 ```bash
-ng generate --help
+# 1. Installer les dépendances frontend et Cloud Functions
+npm install
+npm --prefix functions install
+
+# 2. Lancer le serveur de développement (http://localhost:4200)
+npm start
 ```
 
-## Building
+> Sans configuration Firebase dans `src/environments/environment.ts`, l'application démarre automatiquement en **Mode Démo Local** (données seed déterministes en mémoire). Voir [.env.example](.env.example) et [VERCEL_ENV_CHECKLIST.md](VERCEL_ENV_CHECKLIST.md) pour la configuration Firebase.
 
-To build the project run:
+---
 
-```bash
-ng build
-```
+## Commandes principales
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+| Commande | Description |
+| :--- | :--- |
+| `npm start` | Démarre le serveur Angular local (`http://localhost:4200`) |
+| `npm run build` | Build de production optimisé (`dist/pulse-crm/browser`) |
+| `npm run lint` | Exécute ESLint strict sur `src/` et `functions/src/` |
+| `npm run typecheck` | Vérifie TypeScript (`tsconfig.app.json` + `functions/tsconfig.json`) |
+| `npm run test:ci` | Lance la suite Karma/Jasmine headless avec rapport de couverture |
+| `npm run check` | Exécute la porte qualité complète : `lint → typecheck → test:ci → build` |
+| `npm run format:check` | Vérifie le formatage Prettier |
 
-## Running unit tests
+---
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Documentation technique
 
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Architecture en couches, flux temps réel et diagrammes Mermaid
+- [docs/DEBUGGING.md](docs/DEBUGGING.md) — Guide de diagnostic par `requestId`, logs structurés et erreurs
+- [docs/error-codes.md](docs/error-codes.md) — Catalogue officiel des codes d'erreur (`ERROR_CATALOG`)
+- [docs/adr/0001-observability-and-repository-separation.md](docs/adr/0001-observability-and-repository-separation.md) — Décisions d'architecture (ADR)
+- [AGENTS.md](AGENTS.md) — Règles UI mobile-first, conventions de code et interdits
+- [VERCEL_DEPLOY_CHECKLIST.md](VERCEL_DEPLOY_CHECKLIST.md) & [VERCEL_ENV_CHECKLIST.md](VERCEL_ENV_CHECKLIST.md) — Déploiement & variables

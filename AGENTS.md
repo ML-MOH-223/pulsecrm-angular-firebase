@@ -22,3 +22,20 @@ Toute contribution UI sur **PulseCRM** doit respecter ces 6 règles non négocia
 
 6. **Tokens Design System & Contraste WCAG AA (Clair / Sombre)**
    - Réutiliser les variables CSS de `src/styles/tokens.css` (aucun noir pur `#000000` en Dark Mode) et les primitives `.ds-card`, `.ds-btn`, `.ds-input`, `.ds-badge` afin de garantir un contraste AA constant dans les deux thèmes et au zoom 200 %.
+
+---
+
+# Conventions d'Architecture, Observabilité & Maintenabilité
+
+7. **Séparation des responsabilités**
+   - `features/` (UI Standalone) → `core/state/` (Stores Signals) → `core/repositories/` (I/O Firestore & Cloud Functions) → `core/utils/` (fonctions métier pures).
+   - Ne jamais appeler directement `addDoc`/`updateDoc`/`onSnapshot` depuis un composant UI ou un store sans passer par `core/repositories/`.
+
+8. **Erreurs typées, `requestId` & Observabilité**
+   - Interdiction absolue des `catch {}` vides et des `console.*` hors `src/app/core/observability/logger.ts`.
+   - Toute action asynchrone critique génère un `requestId` (`createRequestId(prefix)`), normalise ses erreurs via `AppError`/`normalizeError`, journalise via `logger` et affiche la référence `(réf. <requestId>)` côté UI sans exposer de stack ni de secret.
+   - Tout nouveau code d'erreur doit être déclaré dans `src/app/core/errors/error-codes.ts` et documenté dans `docs/error-codes.md`.
+
+9. **Validation Zod & Porte Qualité**
+   - Valider toute donnée externe (payloads CRUD, réponses Cloud Functions, `environment.ts`) avec un schéma Zod dans `src/app/core/schemas/` ou `src/app/core/config/env.ts`.
+   - Avant tout commit ou PR, exécuter `npm run check` (`lint` + `typecheck` + `test:ci` + `build`). Chaque bug corrigé doit s'accompagner d'un test de non-régression.
