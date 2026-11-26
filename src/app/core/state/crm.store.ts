@@ -1,30 +1,7 @@
 import { InjectionToken, computed, effect, inject, signal } from '@angular/core';
-import {
-  Timestamp,
-  Unsubscribe,
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  updateDoc,
-  where,
-  writeBatch,
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { AuthStore } from '../auth/auth.store';
 import { normalizeError } from '../errors/app-error';
 import { FirebaseService } from '../firebase/firebase.service';
-import { logger } from '../observability/logger';
-import { createRequestId } from '../observability/request-id';
-import {
-  MonthlyForecastReportSchema,
-  NewActivityPayloadSchema,
-  NewContactPayloadSchema,
-  NewDealPayloadSchema,
-  parseWithSchema,
-} from '../schemas/crm.schemas';
 import {
   Activity,
   Contact,
@@ -36,6 +13,26 @@ import {
   NewContactPayload,
   NewDealPayload,
 } from '../models/crm.model';
+import { logger } from '../observability/logger';
+import { createRequestId } from '../observability/request-id';
+import {
+  createActivityRecord,
+  createContactRecord,
+  createDealRecord,
+  deleteContactRecord,
+  deleteDealRecord,
+  fetchCloudMonthlyForecast,
+  seedOwnerDemoBatch,
+  subscribeOwnerCollections,
+  updateContactRecord,
+  updateDealStageRecord,
+} from '../repositories/crm.repository';
+import {
+  NewActivityPayloadSchema,
+  NewContactPayloadSchema,
+  NewDealPayloadSchema,
+  parseWithSchema,
+} from '../schemas/crm.schemas';
 import {
   buildMonthlyForecastLocal,
   calculateLeadScore,
@@ -45,28 +42,24 @@ import {
 } from '../utils/crm-analytics.utils';
 import { SEED_ACTIVITIES, SEED_CONTACTS, SEED_DEALS } from './crm-seed.data';
 
-function toIsoString(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value instanceof Timestamp) return value.toDate().toISOString();
-  if (value && typeof value === 'object' && 'toDate' in value) {
-    return (value as { toDate: () => Date }).toDate().toISOString();
-  }
-  return new Date().toISOString();
-}
-
 function generateLocalId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function resolveNextProbability(nextStage: DealStage, fallback: number): number {
+  if (nextStage === 'gagne') return 100;
+  if (nextStage === 'perdu') return 0;
+  return DEAL_STAGES.find((s) => s.id === nextStage)?.defaultProbability ?? fallback;
+}
+
 /**
  * Functional Signal-based reactive store factory for PulseCRM.
- * Must be invoked inside an Angular injection context (e.g. InjectionToken factory or component constructor).
+ * Delegates all Firestore/Functions I/O to `crm.repository.ts`.
  */
 export function useCrmStore() {
   const firebase = inject(FirebaseService);
   const authStore = inject(AuthStore);
 
-  // Core state signals
   const _contacts = signal<Contact[]>([]);
   const _deals = signal<Deal[]>([]);
   const _activities = signal<Activity[]>([]);
@@ -76,9 +69,7 @@ export function useCrmStore() {
   const _selectedContactId = signal<string | null>(null);
   const _loading = signal<boolean>(true);
   const _error = signal<string | null>(null);
-  const _syncMode = signal<'firestore' | 'demo'>(
-    firebase.isConfigured ? 'firestore' : 'demo'
-  );
+  const _syncMode = signal<'firestore' | 'demo'>(firebase.isConfigured ? 'firestore' : 'demo');
   const _forecastReport = signal<MonthlyForecastReport | null>(null);
   const _forecastLoading = signal<boolean>(false);
   const _saving = signal<boolean>(false);
@@ -95,7 +86,23 @@ export function useCrmStore() {
     _toast.set(null);
   };
 
-  // Real-time Firestore sync driven reactively by AuthStore user signal
+  const reportFailure = (
+    action: string,
+    err: unknown,
+    requestId: string,
+    userMessage: string,
+    extra: Record<string, unknown> = {}
+  ) => {
+    const appErr = normalizeError(err, {
+      code: 'DATABASE_ERROR',
+      userMessage,
+      requestId,
+      context: { action, ...extra },
+    });
+    logger.error(`CrmStore.${action} failed`, { module: 'CrmStore', requestId }, appErr);
+    _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+  };
+
   effect((onCleanup) => {
     const user = authStore.user();
 
@@ -122,142 +129,44 @@ export function useCrmStore() {
     _loading.set(true);
     _error.set(null);
 
-    const db = firebase.db;
-    let contactsReady = false;
-    let dealsReady = false;
-    let activitiesReady = false;
-
+    const ready = { contacts: false, deals: false, activities: false };
     const markReady = () => {
-      if (contactsReady && dealsReady && activitiesReady) {
-        _loading.set(false);
-      }
+      if (ready.contacts && ready.deals && ready.activities) _loading.set(false);
     };
 
-    const unsubs: Unsubscribe[] = [];
-
-    const contactsQuery = query(
-      collection(db, 'contacts'),
-      where('ownerId', '==', user.uid)
-    );
-    unsubs.push(
-      onSnapshot(
-        contactsQuery,
-        (snap) => {
-          const items = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                firstName: String(data['firstName'] ?? ''),
-                lastName: String(data['lastName'] ?? ''),
-                email: String(data['email'] ?? ''),
-                phone: String(data['phone'] ?? ''),
-                company: String(data['company'] ?? ''),
-                status: (data['status'] ?? 'lead') as Contact['status'],
-                ownerId: String(data['ownerId'] ?? ''),
-                createdAt: toIsoString(data['createdAt']),
-              };
-            })
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-          _contacts.set(items);
-          contactsReady = true;
-          markReady();
-        },
-        (err) => {
-          _error.set(`Erreur Firestore (contacts): ${err.message}`);
-          _loading.set(false);
-        }
-      )
-    );
-
-    const dealsQuery = query(
-      collection(db, 'deals'),
-      where('ownerId', '==', user.uid)
-    );
-    unsubs.push(
-      onSnapshot(
-        dealsQuery,
-        (snap) => {
-          const items = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                title: String(data['title'] ?? ''),
-                contactId: String(data['contactId'] ?? ''),
-                company: String(data['company'] ?? ''),
-                amount: Number(data['amount'] ?? 0),
-                probability: Number(data['probability'] ?? 0),
-                stage: (data['stage'] ?? 'prospection') as DealStage,
-                expectedCloseDate: String(data['expectedCloseDate'] ?? ''),
-                updatedAt: toIsoString(data['updatedAt']),
-                ownerId: data['ownerId'] ? String(data['ownerId']) : undefined,
-                ownerName: data['ownerName'] ? String(data['ownerName']) : undefined,
-              };
-            })
-            .sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-            );
-          _deals.set(items);
-          dealsReady = true;
-          markReady();
-        },
-        (err) => {
-          _error.set(`Erreur Firestore (deals): ${err.message}`);
-          _loading.set(false);
-        }
-      )
-    );
-
-    const activitiesQuery = query(
-      collection(db, 'activities'),
-      where('ownerId', '==', user.uid)
-    );
-    unsubs.push(
-      onSnapshot(
-        activitiesQuery,
-        (snap) => {
-          const items = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                dealId: data['dealId'] ? String(data['dealId']) : null,
-                contactId: String(data['contactId'] ?? ''),
-                type: (data['type'] ?? 'note') as Activity['type'],
-                summary: String(data['summary'] ?? ''),
-                createdAt: toIsoString(data['createdAt']),
-                authorName: String(data['authorName'] ?? 'Équipe'),
-                ownerId: data['ownerId'] ? String(data['ownerId']) : undefined,
-              };
-            })
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-          _activities.set(items);
-          activitiesReady = true;
-          markReady();
-        },
-        (err) => {
-          _error.set(`Erreur Firestore (activities): ${err.message}`);
-          _loading.set(false);
-        }
-      )
-    );
-
-    onCleanup(() => {
-      for (const unsub of unsubs) {
-        unsub();
-      }
+    const unsubscribe = subscribeOwnerCollections(firebase.db, user.uid, {
+      onContacts: (items) => {
+        _contacts.set(items);
+        ready.contacts = true;
+        markReady();
+      },
+      onDeals: (items) => {
+        _deals.set(items);
+        ready.deals = true;
+        markReady();
+      },
+      onActivities: (items) => {
+        _activities.set(items);
+        ready.activities = true;
+        markReady();
+      },
+      onError: (col, err) => {
+        const requestId = createRequestId('sync');
+        const appErr = normalizeError(err, {
+          code: 'FIRESTORE_LISTENER_ERROR',
+          userMessage: `Erreur Firestore (${col}) : vérifiez votre connexion.`,
+          requestId,
+          context: { collection: col },
+        });
+        logger.error('Firestore listener error', { module: 'CrmStore', requestId, col }, appErr);
+        _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+        _loading.set(false);
+      },
     });
+
+    onCleanup(() => unsubscribe());
   });
 
-  // Derived computed signals
   const filteredResult = computed(() =>
     filterContactsAndDeals(
       { contacts: _contacts(), deals: _deals() },
@@ -266,14 +175,10 @@ export function useCrmStore() {
       _selectedStage()
     )
   );
-
   const filteredContacts = computed(() => filteredResult().contacts);
   const filteredDeals = computed(() => filteredResult().deals);
-
   const pipelineMetrics = computed(() => computePipelineMetrics(filteredDeals()));
-
   const kanbanColumns = computed(() => groupDealsByStage(filteredDeals()));
-
   const leadScores = computed(() => {
     const scores = new Map<string, number>();
     const allActivities = _activities();
@@ -282,73 +187,53 @@ export function useCrmStore() {
     }
     return scores;
   });
-
   const selectedContact = computed(
     () => _contacts().find((c) => c.id === _selectedContactId()) ?? null
   );
-
   const selectedContactDeals = computed(() => {
     const id = _selectedContactId();
-    if (!id) return [];
-    return _deals().filter((d) => d.contactId === id);
+    return id ? _deals().filter((d) => d.contactId === id) : [];
   });
-
   const selectedContactActivities = computed(() => {
     const id = _selectedContactId();
     if (!id) return [];
     return _activities()
       .filter((a) => a.contactId === id)
       .slice()
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   });
-
   const ownerOptions = computed(() => {
     const map = new Map<string, string>();
     for (const deal of _deals()) {
-      if (deal.ownerId) {
-        map.set(deal.ownerId, deal.ownerName || deal.ownerId);
-      }
+      if (deal.ownerId) map.set(deal.ownerId, deal.ownerName || deal.ownerId);
     }
     for (const contact of _contacts()) {
       if (contact.ownerId && !map.has(contact.ownerId)) {
-        map.set(
-          contact.ownerId,
+        const label =
           contact.ownerId === authStore.user()?.uid
             ? authStore.user()!.displayName
-            : contact.ownerId
-        );
+            : contact.ownerId;
+        map.set(contact.ownerId, label);
       }
     }
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
   });
 
-  // Filter setters
-  const setSearchQuery = (queryStr: string) => _searchQuery.set(queryStr);
-  const setSelectedStage = (stage: DealStage | 'all') => _selectedStage.set(stage);
-  const setOwnerFilter = (ownerId: string | null) => _ownerFilter.set(ownerId);
-  const selectContact = (contactId: string | null) => _selectedContactId.set(contactId);
-  const clearError = () => _error.set(null);
-
-  // CRUD actions
   const addContact = async (payload: NewContactPayload): Promise<string | null> => {
     const requestId = createRequestId('contact');
     let validated: NewContactPayload;
     try {
       validated = parseWithSchema(NewContactPayloadSchema, payload, requestId, 'Contact');
     } catch (err) {
-      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
-      logger.warn('Contact validation failed', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      reportFailure('addContact.validate', err, requestId, 'Données contact invalides.');
       return null;
     }
 
-    const now = new Date().toISOString();
-    const ownerId = validated.ownerId || authStore.user()?.uid || 'demo-user';
-    const record = { ...validated, ownerId, createdAt: now };
-
+    const record = {
+      ...validated,
+      ownerId: validated.ownerId || authStore.user()?.uid || 'demo-user',
+      createdAt: new Date().toISOString(),
+    };
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('contact');
       _contacts.update((list) => [{ id, ...record }, ...list]);
@@ -357,26 +242,13 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
-    const startedAt = performance.now();
     try {
-      const ref = await addDoc(collection(firebase.db, 'contacts'), record);
-      logger.info('Contact created', {
-        module: 'CrmStore',
-        requestId,
-        contactId: ref.id,
-        durationMs: performance.now() - startedAt,
-      });
+      const id = await createContactRecord(firebase.db, record);
+      logger.info('Contact created', { module: 'CrmStore', requestId, contactId: id });
       showToast(`Contact ${validated.firstName} ${validated.lastName} ajouté.`);
-      return ref.id;
+      return id;
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de créer le contact pour le moment. Vérifiez votre connexion et réessayez.',
-        requestId,
-        context: { action: 'addContact' },
-      });
-      logger.error('Failed to create contact', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      reportFailure('addContact', err, requestId, 'Impossible de créer le contact pour le moment.');
       return null;
     } finally {
       _saving.set(false);
@@ -388,9 +260,7 @@ export function useCrmStore() {
     patch: Partial<Omit<Contact, 'id' | 'createdAt'>>
   ): Promise<void> => {
     if (_syncMode() === 'demo' || !firebase.db) {
-      _contacts.update((list) =>
-        list.map((c) => (c.id === contactId ? { ...c, ...patch } : c))
-      );
+      _contacts.update((list) => list.map((c) => (c.id === contactId ? { ...c, ...patch } : c)));
       showToast('Fiche contact mise à jour.');
       return;
     }
@@ -398,28 +268,20 @@ export function useCrmStore() {
     _saving.set(true);
     const requestId = createRequestId('contact');
     try {
-      await updateDoc(doc(firebase.db, 'contacts', contactId), patch);
+      await updateContactRecord(firebase.db, contactId, patch);
       logger.info('Contact updated', { module: 'CrmStore', requestId, contactId });
       showToast('Fiche contact mise à jour.');
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de mettre à jour ce contact. Réessayez dans un instant.',
-        requestId,
-        context: { action: 'updateContact', contactId },
+      reportFailure('updateContact', err, requestId, 'Impossible de mettre à jour ce contact.', {
+        contactId,
       });
-      logger.error('Failed to update contact', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
   };
 
   const deleteContact = async (contactId: string): Promise<void> => {
-    if (_selectedContactId() === contactId) {
-      _selectedContactId.set(null);
-    }
-
+    if (_selectedContactId() === contactId) _selectedContactId.set(null);
     if (_syncMode() === 'demo' || !firebase.db) {
       _contacts.update((list) => list.filter((c) => c.id !== contactId));
       showToast('Contact supprimé.', 'info');
@@ -429,18 +291,13 @@ export function useCrmStore() {
     _saving.set(true);
     const requestId = createRequestId('contact');
     try {
-      await deleteDoc(doc(firebase.db, 'contacts', contactId));
+      await deleteContactRecord(firebase.db, contactId);
       logger.info('Contact deleted', { module: 'CrmStore', requestId, contactId });
       showToast('Contact supprimé.', 'info');
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de supprimer ce contact. Réessayez dans un instant.',
-        requestId,
-        context: { action: 'deleteContact', contactId },
+      reportFailure('deleteContact', err, requestId, 'Impossible de supprimer ce contact.', {
+        contactId,
       });
-      logger.error('Failed to delete contact', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
@@ -452,21 +309,17 @@ export function useCrmStore() {
     try {
       validated = parseWithSchema(NewDealPayloadSchema, payload, requestId, 'Deal');
     } catch (err) {
-      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
-      logger.warn('Deal validation failed', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      reportFailure('addDeal.validate', err, requestId, 'Données d’opportunité invalides.');
       return null;
     }
 
-    const now = new Date().toISOString();
     const currentUser = authStore.user();
     const record = {
       ...validated,
       ownerId: validated.ownerId || currentUser?.uid || 'demo-user',
       ownerName: validated.ownerName || currentUser?.displayName || 'Commercial',
-      updatedAt: now,
+      updatedAt: new Date().toISOString(),
     };
-
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('deal');
       _deals.update((list) => [{ id, ...record }, ...list]);
@@ -476,39 +329,44 @@ export function useCrmStore() {
 
     _saving.set(true);
     try {
-      const ref = await addDoc(collection(firebase.db, 'deals'), record);
-      logger.info('Deal created', { module: 'CrmStore', requestId, dealId: ref.id });
+      const id = await createDealRecord(firebase.db, record);
+      logger.info('Deal created', { module: 'CrmStore', requestId, dealId: id });
       showToast(`Opportunité « ${validated.title} » créée.`);
-      return ref.id;
+      return id;
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de créer cette opportunité. Vérifiez les champs et réessayez.',
-        requestId,
-        context: { action: 'addDeal' },
-      });
-      logger.error('Failed to create deal', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      reportFailure('addDeal', err, requestId, 'Impossible de créer cette opportunité.');
       return null;
     } finally {
       _saving.set(false);
     }
   };
 
-  const moveDealStage = async (
-    dealId: string,
-    nextStage: DealStage
-  ): Promise<void> => {
+  const applyDemoDealWonAutomation = (existing: Deal, now: string) => {
+    if (existing.contactId) {
+      _contacts.update((list) =>
+        list.map((c) => (c.id === existing.contactId ? { ...c, status: 'customer' } : c))
+      );
+    }
+    _activities.update((list) => [
+      {
+        id: generateLocalId('act'),
+        dealId: existing.id,
+        contactId: existing.contactId,
+        type: 'note',
+        summary: `Automatisation onDealWon : "${existing.title}" (${existing.amount.toLocaleString('fr-FR')} €) gagné — statut client activé.`,
+        createdAt: now,
+        authorName: 'PulseCRM Automation',
+      },
+      ...list,
+    ]);
+  };
+
+  const moveDealStage = async (dealId: string, nextStage: DealStage): Promise<void> => {
     const existing = _deals().find((d) => d.id === dealId);
     if (!existing || existing.stage === nextStage) return;
 
     const stageMeta = DEAL_STAGES.find((s) => s.id === nextStage);
-    const nextProbability =
-      nextStage === 'gagne'
-        ? 100
-        : nextStage === 'perdu'
-          ? 0
-          : stageMeta?.defaultProbability ?? existing.probability;
+    const nextProbability = resolveNextProbability(nextStage, existing.probability);
     const now = new Date().toISOString();
 
     if (_syncMode() === 'demo' || !firebase.db) {
@@ -519,39 +377,15 @@ export function useCrmStore() {
             : d
         )
       );
-
-      // Mirror the `onDealWon` Cloud Function behavior in local demo mode
       if (nextStage === 'gagne' && existing.stage !== 'gagne') {
-        if (existing.contactId) {
-          _contacts.update((list) =>
-            list.map((c) =>
-              c.id === existing.contactId ? { ...c, status: 'customer' } : c
-            )
-          );
-        }
-        _activities.update((list) => [
-          {
-            id: generateLocalId('act'),
-            dealId: existing.id,
-            contactId: existing.contactId,
-            type: 'note',
-            summary: `Automatisation onDealWon : "${existing.title}" (${existing.amount.toLocaleString('fr-FR')} €) gagné — statut client activé.`,
-            createdAt: now,
-            authorName: 'PulseCRM Automation',
-          },
-          ...list,
-        ]);
+        applyDemoDealWonAutomation(existing, now);
       }
       return;
     }
 
     const requestId = createRequestId('deal');
     try {
-      await updateDoc(doc(firebase.db, 'deals', dealId), {
-        stage: nextStage,
-        probability: nextProbability,
-        updatedAt: now,
-      });
+      await updateDealStageRecord(firebase.db, dealId, nextStage, nextProbability, now);
       logger.info('Deal stage moved', {
         module: 'CrmStore',
         requestId,
@@ -561,14 +395,10 @@ export function useCrmStore() {
       });
       showToast(`Opportunité déplacée vers « ${stageMeta?.label ?? nextStage} ».`);
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de déplacer cette opportunité. Réessayez dans un instant.',
-        requestId,
-        context: { action: 'moveDealStage', dealId, nextStage },
+      reportFailure('moveDealStage', err, requestId, 'Impossible de déplacer cette opportunité.', {
+        dealId,
+        nextStage,
       });
-      logger.error('Failed to move deal stage', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     }
   };
 
@@ -582,18 +412,13 @@ export function useCrmStore() {
     _saving.set(true);
     const requestId = createRequestId('deal');
     try {
-      await deleteDoc(doc(firebase.db, 'deals', dealId));
+      await deleteDealRecord(firebase.db, dealId);
       logger.info('Deal deleted', { module: 'CrmStore', requestId, dealId });
       showToast('Opportunité supprimée.', 'info');
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de supprimer cette opportunité. Réessayez dans un instant.',
-        requestId,
-        context: { action: 'deleteDeal', dealId },
+      reportFailure('deleteDeal', err, requestId, 'Impossible de supprimer cette opportunité.', {
+        dealId,
       });
-      logger.error('Failed to delete deal', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
@@ -605,21 +430,17 @@ export function useCrmStore() {
     try {
       validated = parseWithSchema(NewActivityPayloadSchema, payload, requestId, 'Activity');
     } catch (err) {
-      const appErr = normalizeError(err, { code: 'VALIDATION_ERROR', requestId });
-      logger.warn('Activity validation failed', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+      reportFailure('addActivity.validate', err, requestId, 'Données d’activité invalides.');
       return null;
     }
 
-    const now = new Date().toISOString();
     const currentUser = authStore.user();
     const record = {
       ...validated,
       ownerId: validated.ownerId || currentUser?.uid || 'demo-user',
       authorName: validated.authorName || currentUser?.displayName || 'Commercial',
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     };
-
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('act');
       _activities.update((list) => [{ id, ...record }, ...list]);
@@ -629,19 +450,14 @@ export function useCrmStore() {
 
     _saving.set(true);
     try {
-      const ref = await addDoc(collection(firebase.db, 'activities'), record);
-      logger.info('Activity created', { module: 'CrmStore', requestId, activityId: ref.id });
+      const id = await createActivityRecord(firebase.db, record);
+      logger.info('Activity created', { module: 'CrmStore', requestId, activityId: id });
       showToast('Activité enregistrée dans le journal.');
-      return ref.id;
+      return id;
     } catch (err) {
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible d’enregistrer cette activité. Réessayez dans un instant.',
-        requestId,
-        context: { action: 'addActivity', contactId: payload.contactId },
+      reportFailure('addActivity', err, requestId, 'Impossible d’enregistrer cette activité.', {
+        contactId: validated.contactId,
       });
-      logger.error('Failed to create activity', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
       return null;
     } finally {
       _saving.set(false);
@@ -655,26 +471,15 @@ export function useCrmStore() {
     const startedAt = performance.now();
     try {
       if (_syncMode() === 'firestore' && firebase.functions) {
-        const callable = httpsCallable<{ requestId: string }, MonthlyForecastReport>(
-          firebase.functions,
-          'calculateMonthlyForecast'
-        );
-        const result = await callable({ requestId });
-        const validatedReport = parseWithSchema(
-          MonthlyForecastReportSchema,
-          result.data,
-          requestId,
-          'MonthlyForecastReport'
-        );
+        const report = await fetchCloudMonthlyForecast(firebase.functions, requestId);
         logger.info('Cloud monthly forecast succeeded', {
           module: 'CrmStore',
           requestId,
           durationMs: performance.now() - startedAt,
         });
-        _forecastReport.set(validatedReport);
-        return validatedReport;
+        _forecastReport.set(report);
+        return report;
       }
-
       const localReport = buildMonthlyForecastLocal(_deals(), _contacts());
       _forecastReport.set(localReport);
       return localReport;
@@ -695,59 +500,26 @@ export function useCrmStore() {
   const seedDemoDataToFirestore = async (): Promise<void> => {
     const user = authStore.user();
     if (!firebase.db || !user) return;
-
     _error.set(null);
     _saving.set(true);
+    const requestId = createRequestId('seed');
     try {
-      const batch = writeBatch(firebase.db);
-      const uid = user.uid;
-      const author = user.displayName || 'Commercial';
-
-      for (const c of SEED_CONTACTS) {
-        const { id, ...rest } = c;
-        batch.set(doc(firebase.db, 'contacts', `${uid}_${id}`), {
-          ...rest,
-          ownerId: uid,
-        });
-      }
-      for (const d of SEED_DEALS) {
-        const { id, contactId, ...rest } = d;
-        batch.set(doc(firebase.db, 'deals', `${uid}_${id}`), {
-          ...rest,
-          contactId: contactId ? `${uid}_${contactId}` : '',
-          ownerId: uid,
-          ownerName: author,
-        });
-      }
-      for (const a of SEED_ACTIVITIES) {
-        const { id, contactId, dealId, ...rest } = a;
-        batch.set(doc(firebase.db, 'activities', `${uid}_${id}`), {
-          ...rest,
-          contactId: `${uid}_${contactId}`,
-          dealId: dealId ? `${uid}_${dealId}` : null,
-          ownerId: uid,
-        });
-      }
-      await batch.commit();
-      logger.info('Demo data seeded to Firestore', { module: 'CrmStore', requestId: createRequestId('seed') });
+      await seedOwnerDemoBatch(firebase.db, user.uid, user.displayName || 'Commercial');
+      logger.info('Demo data seeded to Firestore', { module: 'CrmStore', requestId });
       showToast('Données de démonstration chargées avec succès !');
     } catch (err) {
-      const requestId = createRequestId('seed');
-      const appErr = normalizeError(err, {
-        code: 'DATABASE_ERROR',
-        userMessage: 'Impossible de charger les données de démonstration. Vérifiez votre connexion et réessayez.',
+      reportFailure(
+        'seedDemoDataToFirestore',
+        err,
         requestId,
-        context: { action: 'seedDemoDataToFirestore' },
-      });
-      logger.error('Failed to seed demo data', { module: 'CrmStore', requestId }, appErr);
-      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
+        'Impossible de charger les données de démonstration.'
+      );
     } finally {
       _saving.set(false);
     }
   };
 
   return {
-    // Readonly state signals
     contacts: _contacts.asReadonly(),
     deals: _deals.asReadonly(),
     activities: _activities.asReadonly(),
@@ -762,8 +534,6 @@ export function useCrmStore() {
     forecastLoading: _forecastLoading.asReadonly(),
     saving: _saving.asReadonly(),
     toast: _toast.asReadonly(),
-
-    // Derived computed signals
     filteredContacts,
     filteredDeals,
     pipelineMetrics,
@@ -773,16 +543,12 @@ export function useCrmStore() {
     selectedContactDeals,
     selectedContactActivities,
     ownerOptions,
-
-    // UI filter & selection actions
-    setSearchQuery,
-    setSelectedStage,
-    setOwnerFilter,
-    selectContact,
-    clearError,
+    setSearchQuery: (q: string) => _searchQuery.set(q),
+    setSelectedStage: (s: DealStage | 'all') => _selectedStage.set(s),
+    setOwnerFilter: (o: string | null) => _ownerFilter.set(o),
+    selectContact: (id: string | null) => _selectedContactId.set(id),
+    clearError: () => _error.set(null),
     clearToast,
-
-    // CRUD & Cloud Function actions
     addContact,
     updateContact,
     deleteContact,
