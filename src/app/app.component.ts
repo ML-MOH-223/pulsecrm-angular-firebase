@@ -1,7 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { AuthStore } from './core/auth/auth.store';
 import { DEAL_STAGES, DealStage } from './core/models/crm.model';
 import { CRM_STORE } from './core/state/crm.store';
+import { ThemeStore } from './core/state/theme.store';
 import { AuthModalComponent } from './features/auth/auth-modal.component';
 import { ContactDetailDrawerComponent } from './features/contacts/contact-detail-drawer.component';
 import { ContactsDirectoryComponent } from './features/contacts/contacts-directory.component';
@@ -15,6 +17,7 @@ type ActiveTab = 'pipeline' | 'contacts';
   selector: 'app-root',
   standalone: true,
   imports: [
+    CurrencyPipe,
     KpiBannerComponent,
     PipelineKanbanComponent,
     ContactsDirectoryComponent,
@@ -24,67 +27,269 @@ type ActiveTab = 'pipeline' | 'contacts';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (!authStore.isAuthenticated()) {
+    @if (authStore.loading()) {
+      <div class="flex min-h-screen flex-col items-center justify-center bg-[#f4f6fa] px-4 text-center dark:bg-[#0f172a]">
+        <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+          </svg>
+        </div>
+        <div class="flex items-center gap-2.5 text-sm font-medium text-slate-600 dark:text-slate-300">
+          <span class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></span>
+          <span>Chargement de votre espace PulseCRM...</span>
+        </div>
+      </div>
+    } @else if (!authStore.isAuthenticated()) {
       <app-auth-modal />
     } @else {
-      <div class="min-h-screen bg-slate-50 text-slate-900">
-        <!-- Top SaaS Header -->
-        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-          <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <!-- Brand & View Tabs -->
-            <div class="flex items-center gap-6">
-              <div class="flex items-center gap-2.5">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
-                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                  </svg>
-                </div>
-                <div>
-                  <span class="text-base font-bold tracking-tight text-slate-900">PulseCRM</span>
-                  <div class="flex items-center gap-1.5">
-                    @if (store.syncMode() === 'firestore') {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                        Firestore Live
-                      </span>
-                    } @else {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                        Mode Démo Local
-                      </span>
-                    }
+      <div class="flex min-h-screen w-full overflow-x-clip bg-[#f4f6fa] text-slate-900 transition-colors duration-200 dark:bg-[#0f172a] dark:text-slate-100">
+        <!-- Mobile Slide-Over Navigation Drawer -->
+        @if (mobileMenuOpen()) {
+          <div
+            class="fixed inset-0 z-50 flex lg:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu de navigation"
+          >
+            <div
+              class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+              (click)="mobileMenuOpen.set(false)"
+            ></div>
+
+            <aside class="relative z-10 flex h-[100dvh] w-72 max-w-[85vw] flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300 shadow-2xl">
+              <div class="flex h-14 items-center justify-between border-b border-slate-800/80 px-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                    </svg>
+                  </div>
+                  <div class="min-w-0">
+                    <span class="font-display text-sm font-bold tracking-tight text-white">PulseCRM</span>
+                    <div class="flex items-center gap-1.5">
+                      @if (store.syncMode() === 'firestore') {
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                        <span class="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
+                          Synchronisé
+                        </span>
+                      } @else {
+                        <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                        <span class="text-[9px] font-semibold uppercase tracking-wider text-amber-400">
+                          Mode Démo
+                        </span>
+                      }
+                    </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  (click)="mobileMenuOpen.set(false)"
+                  aria-label="Fermer le menu"
+                  class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                >
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
-              <nav class="flex items-center rounded-lg bg-slate-100 p-1" aria-label="Navigation principale">
-                <button
-                  type="button"
-                  (click)="activeTab.set('pipeline')"
-                  class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
-                  [class]="activeTab() === 'pipeline' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
-                >
-                  Pipeline Kanban
-                </button>
-                <button
-                  type="button"
-                  (click)="activeTab.set('contacts')"
-                  class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
-                  [class]="activeTab() === 'contacts' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
-                >
-                  Contacts ({{ store.contacts().length }})
-                </button>
-              </nav>
-            </div>
+              <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Navigation mobile">
+                <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  Espace Commercial
+                </p>
 
-            <!-- Right Actions & User -->
-            <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  (click)="selectTab('pipeline')"
+                  [class]="activeTab() === 'pipeline'
+                    ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
+                    : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
+                >
+                  <span class="flex items-center gap-3">
+                    <svg class="h-4 w-4" [class]="activeTab() === 'pipeline' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                    Pipeline Kanban
+                  </span>
+                  <span class="rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
+                    {{ store.deals().length }}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  (click)="selectTab('contacts')"
+                  [class]="activeTab() === 'contacts'
+                    ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
+                    : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
+                >
+                  <span class="flex items-center gap-3">
+                    <svg class="h-4 w-4" [class]="activeTab() === 'contacts' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                    </svg>
+                    Contacts
+                  </span>
+                  <span class="rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-slate-300 tabular-nums">
+                    {{ store.contacts().length }}
+                  </span>
+                </button>
+
+                <div class="pt-4">
+                  <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    Analytique & Cloud
+                  </p>
+                  <button
+                    type="button"
+                    (click)="openForecastFromMobile()"
+                    class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                  >
+                    <svg class="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                    </svg>
+                    Prévisions mensuelles
+                  </button>
+
+                  @if (store.syncMode() === 'firestore' && store.deals().length === 0) {
+                    <button
+                      type="button"
+                      (click)="seedFromMobile()"
+                      class="mt-1 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 px-3 py-2.5 text-xs font-medium text-indigo-300 transition hover:border-indigo-500 hover:bg-indigo-500/10"
+                    >
+                      Importer données démo
+                    </button>
+                  }
+                </div>
+
+                <div class="pt-4">
+                  <div class="rounded-xl border border-slate-800/90 bg-slate-900/70 p-3.5">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Revenu pondéré actif
+                    </p>
+                    <p class="mt-1 font-display text-lg font-bold text-white tabular-nums">
+                      {{ store.pipelineMetrics().weightedRevenue | currency:'EUR':'symbol':'1.0-0':'fr' }}
+                    </p>
+                  </div>
+                </div>
+              </nav>
+
+              <div class="space-y-2 border-t border-slate-800/80 p-3.5">
+                <div class="flex items-center gap-2.5 rounded-xl bg-slate-900/80 p-2.5">
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold uppercase text-white">
+                    {{ getUserInitials() }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-semibold text-white">
+                      {{ authStore.user()?.displayName }}
+                    </p>
+                    <p class="truncate text-[10px] text-slate-400">
+                      {{ authStore.user()?.email || 'Session démo' }}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  (click)="signOutFromMobile()"
+                  class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
+                >
+                  Se déconnecter
+                </button>
+              </div>
+            </aside>
+          </div>
+        }
+
+        <!-- Desktop Obsidian Sidebar (sticky 100dvh so Logout is always visible without scrolling) -->
+        <aside class="hidden lg:sticky lg:top-0 lg:flex lg:h-[100dvh] lg:w-64 lg:shrink-0 lg:flex-col border-r border-slate-800/80 bg-slate-950 text-slate-300">
+          <!-- Brand Header -->
+          <div class="flex h-16 items-center gap-3 border-b border-slate-800/80 px-5">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <span class="font-display text-base font-bold tracking-tight text-white">PulseCRM</span>
+              <div class="flex items-center gap-1.5">
+                @if (store.syncMode() === 'firestore') {
+                  <span class="relative flex h-2 w-2">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                  </span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                    Synchronisé
+                  </span>
+                } @else {
+                  <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                    Mode Démo Local
+                  </span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- Primary Navigation -->
+          <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Navigation principale">
+            <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Espace Commercial
+            </p>
+
+            <button
+              type="button"
+              (click)="activeTab.set('pipeline')"
+              [class]="activeTab() === 'pipeline'
+                ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
+                : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
+            >
+              <span class="flex items-center gap-3">
+                <svg class="h-4 w-4" [class]="activeTab() === 'pipeline' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                Pipeline Kanban
+              </span>
+              <span
+                [class]="activeTab() === 'pipeline'
+                  ? 'rounded-md bg-indigo-500/20 px-2 py-0.5 text-[11px] font-semibold text-indigo-300 tabular-nums'
+                  : 'rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-slate-500 tabular-nums'"
+              >
+                {{ store.deals().length }}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              (click)="activeTab.set('contacts')"
+              [class]="activeTab() === 'contacts'
+                ? 'flex w-full items-center justify-between rounded-xl bg-indigo-600/15 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-indigo-500/30 transition'
+                : 'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-100 transition'"
+            >
+              <span class="flex items-center gap-3">
+                <svg class="h-4 w-4" [class]="activeTab() === 'contacts' ? 'text-indigo-400' : 'text-slate-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
+                Contacts
+              </span>
+              <span
+                [class]="activeTab() === 'contacts'
+                  ? 'rounded-md bg-indigo-500/20 px-2 py-0.5 text-[11px] font-semibold text-indigo-300 tabular-nums'
+                  : 'rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-medium text-slate-500 tabular-nums'"
+              >
+                {{ store.contacts().length }}
+              </span>
+            </button>
+
+            <div class="pt-5">
+              <p class="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                Analytique & Cloud
+              </p>
+
               <button
                 type="button"
                 (click)="openForecast()"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-slate-900 hover:text-white"
               >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg class="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                 </svg>
                 Prévisions mensuelles
@@ -94,117 +299,383 @@ type ActiveTab = 'pipeline' | 'contacts';
                 <button
                   type="button"
                   (click)="store.seedDemoDataToFirestore()"
-                  class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  class="mt-1 flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-700 px-3 py-2.5 text-xs font-medium text-indigo-300 transition hover:border-indigo-500 hover:bg-indigo-500/10"
                 >
+                  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
                   Importer données démo
                 </button>
               }
+            </div>
 
-              <div class="flex items-center gap-2 border-l border-slate-200 pl-3">
-                <span class="hidden text-xs font-medium text-slate-700 sm:inline">
+            <!-- Compact Live Summary Card inside Sidebar -->
+            <div class="pt-5">
+              <div class="rounded-xl border border-slate-800/90 bg-slate-900/70 p-3.5">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Revenu pondéré actif
+                </p>
+                <p class="mt-1 font-display text-lg font-bold text-white tabular-nums">
+                  {{ store.pipelineMetrics().weightedRevenue | currency:'EUR':'symbol':'1.0-0':'fr' }}
+                </p>
+                <p class="mt-0.5 text-[11px] text-slate-400">
+                  {{ store.activities().length }} activités enregistrées
+                </p>
+              </div>
+            </div>
+          </nav>
+
+          <!-- User Profile Footer -->
+          <div class="space-y-2 border-t border-slate-800/80 p-3.5">
+            <div class="flex items-center gap-2.5 rounded-xl bg-slate-900/80 p-2.5">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold uppercase text-white">
+                {{ getUserInitials() }}
+              </span>
+              <div class="min-w-0">
+                <p class="truncate text-xs font-semibold text-white">
                   {{ authStore.user()?.displayName }}
-                </span>
+                </p>
+                <p class="truncate text-[10px] text-slate-400">
+                  {{ authStore.user()?.email || 'Session démo' }}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              (click)="authStore.signOut()"
+              class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs font-medium text-slate-400 transition hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+              </svg>
+              Se déconnecter
+            </button>
+          </div>
+        </aside>
+
+        <!-- Right Main Workspace -->
+        <div class="flex min-w-0 flex-1 flex-col">
+          <!-- Sticky Top Command Bar -->
+          <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-colors duration-200 dark:border-slate-800 dark:bg-[#162033]/90">
+            <div class="mx-auto flex max-w-[1600px] flex-col gap-2.5 px-3.5 py-2.5 sm:px-6 sm:py-3 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+              <!-- Top Row on Mobile: Hamburger + Title + Dark Mode Toggle -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <button
+                    type="button"
+                    (click)="mobileMenuOpen.set(true)"
+                    [attr.aria-expanded]="mobileMenuOpen()"
+                    aria-label="Ouvrir le menu"
+                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 lg:hidden"
+                  >
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                  </button>
+
+                  <div class="min-w-0">
+                    <h1 class="truncate font-display text-sm font-bold tracking-tight text-slate-900 dark:text-white sm:text-base lg:text-lg">
+                      {{ activeTab() === 'pipeline' ? 'Pipeline Commercial' : 'Répertoire Contacts' }}
+                    </h1>
+                    <p class="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
+                      {{ activeTab() === 'pipeline'
+                        ? 'Suivez vos opportunités en temps réel et accélérez vos closings'
+                        : 'Centralisez vos comptes, scores d’engagement et journaux d’activités' }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Dark Mode Toggle (Mobile/Tablet) -->
                 <button
                   type="button"
-                  (click)="authStore.signOut()"
-                  class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  (click)="themeStore.toggle()"
+                  [attr.aria-label]="themeStore.isDark() ? 'Passer en thème clair' : 'Passer en thème sombre'"
+                  class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-300 dark:hover:bg-slate-700 lg:hidden"
                 >
-                  Déconnexion
+                  @if (themeStore.isDark()) {
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                  } @else {
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                    </svg>
+                  }
+                </button>
+              </div>
+
+              <!-- Search + Filters + Desktop Theme Toggle -->
+              <div class="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center lg:flex-nowrap">
+                <div class="relative min-[380px]:col-span-2 sm:w-64 sm:flex-none lg:w-72">
+                  <svg class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400 sm:top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  <input
+                    type="search"
+                    [value]="store.searchQuery()"
+                    (input)="onSearchInput($event)"
+                    placeholder="Rechercher contact, deal..."
+                    class="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-3 text-base text-slate-800 placeholder:text-slate-400 transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800 sm:min-h-[38px] sm:text-xs"
+                  />
+                </div>
+
+                <select
+                  [value]="store.ownerFilter() ?? ''"
+                  (change)="onOwnerChange($event)"
+                  aria-label="Filtrer par commercial"
+                  class="min-h-[44px] min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-base font-medium text-slate-700 transition hover:border-slate-300 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 sm:min-h-[38px] sm:text-xs"
+                >
+                  <option value="">Commerciaux</option>
+                  @for (owner of store.ownerOptions(); track owner.id) {
+                    <option [value]="owner.id">{{ owner.label }}</option>
+                  }
+                </select>
+
+                @if (activeTab() === 'pipeline') {
+                  <select
+                    [value]="store.selectedStage()"
+                    (change)="onStageChange($event)"
+                    aria-label="Filtrer par étape"
+                    class="min-h-[44px] min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-base font-medium text-slate-700 transition hover:border-slate-300 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 sm:min-h-[38px] sm:text-xs"
+                  >
+                    <option value="all">Étapes</option>
+                    @for (stage of stages; track stage.id) {
+                      <option [value]="stage.id">{{ stage.label }}</option>
+                    }
+                  </select>
+                }
+
+                @if (store.searchQuery() || store.ownerFilter() || store.selectedStage() !== 'all') {
+                  <button
+                    type="button"
+                    (click)="resetFilters()"
+                    class="min-h-[44px] rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 min-[380px]:col-span-2 sm:col-span-1 sm:min-h-[38px]"
+                  >
+                    Effacer les filtres
+                  </button>
+                }
+
+                <!-- Desktop Theme Toggle -->
+                <button
+                  type="button"
+                  (click)="themeStore.toggle()"
+                  [attr.aria-label]="themeStore.isDark() ? 'Passer en thème clair' : 'Passer en thème sombre'"
+                  [title]="themeStore.isDark() ? 'Thème clair' : 'Thème sombre'"
+                  class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-300 dark:hover:bg-slate-700 lg:inline-flex"
+                >
+                  @if (themeStore.isDark()) {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                  } @else {
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                    </svg>
+                  }
                 </button>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <!-- Main Content -->
-        <main class="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6">
-          <!-- Error Banner -->
-          @if (store.error(); as err) {
-            <div class="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
-              <span>{{ err }}</span>
-              <button type="button" (click)="store.clearError()" class="ml-4 font-bold hover:underline">
-                Fermer
-              </button>
-            </div>
-          }
-
-          <!-- Real-Time KPI Banner -->
-          <app-kpi-banner />
-
-          <!-- Instant Multi-Criteria Filter Bar -->
-          <section class="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs">
-            <div class="relative flex-1 min-w-[220px]">
-              <svg class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input
-                type="search"
-                [value]="store.searchQuery()"
-                (input)="onSearchInput($event)"
-                placeholder="Rechercher un contact, une entreprise, une opportunité..."
-                class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-
-            <select
-              [value]="store.ownerFilter() ?? ''"
-              (change)="onOwnerChange($event)"
-              aria-label="Filtrer par commercial"
-              class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:bg-white focus:outline-none"
-            >
-              <option value="">Tous les commerciaux</option>
-              @for (owner of store.ownerOptions(); track owner.id) {
-                <option [value]="owner.id">{{ owner.label }}</option>
-              }
-            </select>
-
-            <select
-              [value]="store.selectedStage()"
-              (change)="onStageChange($event)"
-              aria-label="Filtrer par étape"
-              class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:bg-white focus:outline-none"
-            >
-              <option value="all">Toutes les étapes</option>
-              @for (stage of stages; track stage.id) {
-                <option [value]="stage.id">{{ stage.label }}</option>
-              }
-            </select>
-
-            @if (store.searchQuery() || store.ownerFilter() || store.selectedStage() !== 'all') {
-              <button
-                type="button"
-                (click)="resetFilters()"
-                class="rounded-lg px-2.5 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+          <!-- Main Scrollable Canvas -->
+          <main class="mx-auto w-full max-w-[1600px] flex-1 space-y-5 px-3 pt-4 pb-28 sm:space-y-6 sm:px-6 sm:pt-6 lg:px-8 lg:pb-8">
+            @if (!isOnline()) {
+              <div
+                role="status"
+                class="animate-fade-in flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-medium text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200"
               >
-                Réinitialiser
-              </button>
+                <span class="h-2 w-2 shrink-0 rounded-full bg-sky-500"></span>
+                <span>Mode hors ligne — vos modifications seront synchronisées automatiquement au retour du réseau.</span>
+              </div>
             }
-          </section>
+            @if (store.error(); as err) {
+              <div class="animate-fade-in flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-medium text-amber-900 shadow-xs">
+                <div class="flex min-w-0 items-center gap-2">
+                  <svg class="h-4 w-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <span class="break-words">{{ err }}</span>
+                </div>
+                <button type="button" (click)="store.clearError()" class="shrink-0 font-semibold text-amber-800 hover:underline">
+                  Fermer
+                </button>
+              </div>
+            }
 
-          <!-- Main View Switcher -->
-          @if (store.loading()) {
-            <div class="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-              <span class="mr-3 inline-block h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></span>
-              Synchronisation temps réel avec Firestore...
-            </div>
-          } @else {
-            @switch (activeTab()) {
-              @case ('pipeline') {
-                <app-pipeline-kanban />
-              }
-              @case ('contacts') {
-                <app-contacts-directory />
-              }
+            <!-- Real-Time KPI Banner -->
+            <app-kpi-banner />
+
+            <!-- Guided Onboarding Card for First-Time Empty Workspace -->
+            @if (!store.loading() && store.contacts().length === 0 && store.deals().length === 0) {
+              <section class="animate-fade-in rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-5 shadow-card sm:p-6">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="max-w-xl">
+                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                      Bienvenue sur PulseCRM
+                    </span>
+                    <h2 class="mt-2 font-display text-base font-bold text-slate-900 sm:text-lg">
+                      Votre espace commercial est prêt ! Par où souhaitez-vous commencer ?
+                    </h2>
+                    <p class="mt-1 text-xs leading-relaxed text-slate-600">
+                      Ajoutez votre premier client ou chargez un exemple complet (contacts, opportunités et activités) pour découvrir immédiatement le fonctionnement du pipeline.
+                    </p>
+                  </div>
+                  <div class="flex flex-col gap-2 sm:flex-row sm:shrink-0">
+                    <button
+                      type="button"
+                      (click)="activeTab.set('contacts')"
+                      class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                    >
+                      Créer mon premier contact
+                    </button>
+                    @if (store.syncMode() === 'firestore') {
+                      <button
+                        type="button"
+                        [disabled]="store.saving()"
+                        (click)="store.seedDemoDataToFirestore()"
+                        class="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50"
+                      >
+                        {{ store.saving() ? 'Chargement...' : 'Charger un exemple de démo' }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              </section>
             }
-          }
-        </main>
+
+            <!-- Active Workspace View with Skeleton Shimmer -->
+            @if (store.loading()) {
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Chargement des données">
+                @for (item of [1, 2, 3]; track item) {
+                  <div class="ds-card space-y-3 p-5">
+                    <div class="flex items-center justify-between">
+                      <div class="skeleton h-4 w-28"></div>
+                      <div class="skeleton h-5 w-16"></div>
+                    </div>
+                    <div class="skeleton h-5 w-3/4"></div>
+                    <div class="skeleton h-3 w-full"></div>
+                    <div class="skeleton h-8 w-full"></div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="animate-fade-in">
+                @switch (activeTab()) {
+                  @case ('pipeline') {
+                    <app-pipeline-kanban />
+                  }
+                  @case ('contacts') {
+                    <app-contacts-directory />
+                  }
+                }
+              </div>
+            }
+          </main>
+        </div>
 
         <!-- Contact Detail Slide-Over Drawer -->
         <app-contact-detail-drawer />
 
-        <!-- Monthly Forecast Modal -->
+        <!-- Monthly Forecast Modal (lazy-deferred for faster 3G initial load) -->
         @if (showForecastModal()) {
-          <app-forecast-modal (closed)="showForecastModal.set(false)" />
+          @defer {
+            <app-forecast-modal (closed)="showForecastModal.set(false)" />
+          }
+        }
+
+        <!-- Mobile Bottom Navigation Bar (44px+ touch targets + safe-area) -->
+        <nav
+          aria-label="Navigation rapide mobile"
+          class="pb-safe fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-slate-200/80 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-[#162033]/95 lg:hidden"
+        >
+          <button
+            type="button"
+            (click)="activeTab.set('pipeline')"
+            [class]="activeTab() === 'pipeline'
+              ? 'flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400'
+              : 'flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400'"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+            </svg>
+            <span>Pipeline</span>
+          </button>
+
+          <button
+            type="button"
+            (click)="activeTab.set('contacts')"
+            [class]="activeTab() === 'contacts'
+              ? 'flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400'
+              : 'flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400'"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+            <span>Contacts</span>
+          </button>
+
+          <button
+            type="button"
+            (click)="openForecast()"
+            class="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            <span>Prévisions</span>
+          </button>
+
+          <button
+            type="button"
+            (click)="mobileMenuOpen.set(true)"
+            class="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+            <span>Compte</span>
+          </button>
+        </nav>
+
+        <!-- Floating Success / Welcome Toast -->
+        @if (store.toast(); as toast) {
+          <div
+            role="status"
+            aria-live="polite"
+            class="animate-toast fixed bottom-20 right-4 z-50 flex max-w-sm items-center gap-2.5 rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl ring-1 ring-white/10 dark:bg-indigo-600 lg:bottom-5"
+          >
+            <span
+              class="h-2 w-2 shrink-0 rounded-full"
+              [class]="toast.type === 'success' ? 'bg-emerald-400' : 'bg-sky-400'"
+            ></span>
+            <span>{{ toast.message }}</span>
+            <button
+              type="button"
+              (click)="store.clearToast()"
+              class="ml-2 text-slate-400 hover:text-white"
+              aria-label="Fermer la notification"
+            >
+              ✕
+            </button>
+          </div>
+        } @else {
+          @if (authStore.infoMessage(); as welcome) {
+            <div
+              role="status"
+              aria-live="polite"
+              class="animate-fade-in fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-2.5 rounded-xl bg-emerald-700 px-4 py-3 text-xs font-semibold text-white shadow-xl"
+            >
+              <span>{{ welcome }}</span>
+              <button
+                type="button"
+                (click)="authStore.clearInfo()"
+                class="ml-2 text-emerald-200 hover:text-white"
+                aria-label="Fermer la notification"
+              >
+                ✕
+              </button>
+            </div>
+          }
         }
       </div>
     }
@@ -213,10 +684,43 @@ type ActiveTab = 'pipeline' | 'contacts';
 export class AppComponent {
   readonly authStore = inject(AuthStore);
   readonly store = inject(CRM_STORE);
+  readonly themeStore = inject(ThemeStore);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly stages = DEAL_STAGES;
   readonly activeTab = signal<ActiveTab>('pipeline');
   readonly showForecastModal = signal(false);
+  readonly mobileMenuOpen = signal(false);
+  readonly isOnline = signal<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const handleOnline = () => this.isOnline.set(true);
+      const handleOffline = () => this.isOnline.set(false);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      this.destroyRef.onDestroy(() => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      });
+    }
+  }
+
+  selectTab(tab: ActiveTab): void {
+    this.activeTab.set(tab);
+    this.mobileMenuOpen.set(false);
+  }
+
+  getUserInitials(): string {
+    const name = this.authStore.user()?.displayName?.trim() || 'U';
+    const parts = name.split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
 
   onSearchInput(event: Event): void {
     this.store.setSearchQuery((event.target as HTMLInputElement).value);
@@ -241,5 +745,20 @@ export class AppComponent {
   async openForecast(): Promise<void> {
     this.showForecastModal.set(true);
     await this.store.requestMonthlyForecast();
+  }
+
+  async openForecastFromMobile(): Promise<void> {
+    this.mobileMenuOpen.set(false);
+    await this.openForecast();
+  }
+
+  async seedFromMobile(): Promise<void> {
+    this.mobileMenuOpen.set(false);
+    await this.store.seedDemoDataToFirestore();
+  }
+
+  async signOutFromMobile(): Promise<void> {
+    this.mobileMenuOpen.set(false);
+    await this.authStore.signOut();
   }
 }

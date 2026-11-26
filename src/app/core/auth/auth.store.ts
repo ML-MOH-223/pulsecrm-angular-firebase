@@ -4,6 +4,7 @@ import {
   User,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInAnonymously as firebaseSignInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -48,10 +49,12 @@ export class AuthStore {
   private readonly _user = signal<CrmUser | null>(null);
   private readonly _loading = signal<boolean>(true);
   private readonly _error = signal<string | null>(null);
+  private readonly _infoMessage = signal<string | null>(null);
 
   readonly user = this._user.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly infoMessage = this._infoMessage.asReadonly();
   readonly isDemoMode = computed(() => !this.firebase.isConfigured);
   readonly isAuthenticated = computed(() => this._user() !== null);
 
@@ -69,7 +72,7 @@ export class AuthStore {
         this._loading.set(false);
       },
       (err) => {
-        this._error.set(err.message);
+        this._error.set(this.formatAuthError(err));
         this._loading.set(false);
       }
     );
@@ -81,12 +84,17 @@ export class AuthStore {
     this._error.set(null);
   }
 
+  clearInfo(): void {
+    this._infoMessage.set(null);
+  }
+
   async signInWithGoogle(): Promise<void> {
     if (!this.firebase.auth) {
       this._user.set(DEMO_USER);
       return;
     }
     this._error.set(null);
+    this._infoMessage.set(null);
     this._loading.set(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -109,6 +117,7 @@ export class AuthStore {
       return;
     }
     this._error.set(null);
+    this._infoMessage.set(null);
     this._loading.set(true);
     try {
       await signInWithEmailAndPassword(this.firebase.auth, email, password);
@@ -131,9 +140,11 @@ export class AuthStore {
         displayName: displayName.trim() || 'Commercial',
         isAnonymous: false,
       });
+      this._infoMessage.set('Compte créé avec succès ! Bienvenue sur PulseCRM.');
       return;
     }
     this._error.set(null);
+    this._infoMessage.set(null);
     this._loading.set(true);
     try {
       const cred = await createUserWithEmailAndPassword(
@@ -145,8 +156,36 @@ export class AuthStore {
         await updateProfile(cred.user, { displayName: displayName.trim() });
       }
       this._user.set(mapFirebaseUser(cred.user));
+      this._infoMessage.set('Compte créé avec succès ! Bienvenue sur PulseCRM.');
     } catch (err) {
       this._error.set(this.formatAuthError(err));
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  async resetPassword(email: string): Promise<boolean> {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      this._error.set('Saisissez d’abord votre adresse email pour recevoir le lien de réinitialisation.');
+      return false;
+    }
+    if (!this.firebase.auth) {
+      this._infoMessage.set(`Un lien de réinitialisation a été simulé pour ${trimmed}.`);
+      return true;
+    }
+    this._error.set(null);
+    this._infoMessage.set(null);
+    this._loading.set(true);
+    try {
+      await sendPasswordResetEmail(this.firebase.auth, trimmed);
+      this._infoMessage.set(
+        `Un email de réinitialisation vient d’être envoyé à ${trimmed}. Pensez à vérifier vos spams.`
+      );
+      return true;
+    } catch (err) {
+      this._error.set(this.formatAuthError(err));
+      return false;
     } finally {
       this._loading.set(false);
     }
@@ -158,6 +197,7 @@ export class AuthStore {
       return;
     }
     this._error.set(null);
+    this._infoMessage.set(null);
     this._loading.set(true);
     try {
       await firebaseSignInAnonymously(this.firebase.auth);
@@ -174,6 +214,7 @@ export class AuthStore {
       return;
     }
     this._error.set(null);
+    this._infoMessage.set(null);
     try {
       await firebaseSignOut(this.firebase.auth);
     } catch (err) {
@@ -182,9 +223,35 @@ export class AuthStore {
   }
 
   private formatAuthError(err: unknown): string {
-    if (err instanceof Error) {
-      return err.message.replace(/^Firebase:\s*/i, '');
+    const code = (err as { code?: string })?.code ?? '';
+    const messages: Record<string, string> = {
+      'auth/invalid-credential':
+        'Email ou mot de passe incorrect. Vérifiez vos identifiants ou cliquez sur « Mot de passe oublié ? ».',
+      'auth/user-not-found':
+        'Aucun compte n’est associé à cet email. Vérifiez l’adresse ou créez un compte.',
+      'auth/wrong-password':
+        'Mot de passe incorrect. Réessayez ou cliquez sur « Mot de passe oublié ? ».',
+      'auth/invalid-email':
+        'Le format de l’adresse email est invalide.',
+      'auth/email-already-in-use':
+        'Un compte existe déjà avec cet email. Essayez de vous connecter.',
+      'auth/weak-password':
+        'Le mot de passe est trop court : utilisez au moins 6 caractères.',
+      'auth/too-many-requests':
+        'Trop de tentatives échouées. Patientez quelques minutes ou réinitialisez votre mot de passe.',
+      'auth/popup-closed-by-user':
+        'La fenêtre de connexion Google a été fermée avant la fin.',
+      'auth/popup-blocked':
+        'Votre navigateur a bloqué la fenêtre Google. Autorisez les pop-ups ou utilisez votre email.',
+      'auth/network-request-failed':
+        'Connexion Internet indisponible. Vérifiez votre réseau et réessayez.',
+      'auth/operation-not-allowed':
+        'Cette méthode de connexion n’est pas encore activée. Essayez par email ou avec Google.',
+    };
+
+    if (code && messages[code]) {
+      return messages[code];
     }
-    return 'Erreur d’authentification inattendue.';
+    return 'Impossible de finaliser l’authentification pour le moment. Réessayez dans un instant.';
   }
 }

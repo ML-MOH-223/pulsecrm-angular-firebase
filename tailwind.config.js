@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     "./src/**/*.{html,ts}"
   ],
@@ -7,6 +8,7 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        display: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         brand: {
@@ -18,6 +20,11 @@ module.exports = {
           700: '#4338ca',
           900: '#312e81',
         },
+      },
+      boxShadow: {
+        'card': 'var(--shadow-card)',
+        'card-hover': 'var(--shadow-card-hover)',
+        'modal': 'var(--shadow-modal)',
       },
     },
   },

@@ -44,6 +44,7 @@ export interface Activity {
   summary: string;
   createdAt: string; // ISO-8601 date string
   authorName: string;
+  ownerId?: string;
 }
 
 export interface PipelineMetrics {

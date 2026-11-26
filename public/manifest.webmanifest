@@ -1,0 +1,17 @@
+{
+  "name": "PulseCRM — Pipeline Commercial",
+  "short_name": "PulseCRM",
+  "description": "CRM collaboratif temps réel pour le suivi du pipeline commercial et des clients.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

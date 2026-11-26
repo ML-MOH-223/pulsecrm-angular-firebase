@@ -7,9 +7,9 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  orderBy,
   query,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -71,6 +71,19 @@ export function useCrmStore() {
   );
   const _forecastReport = signal<MonthlyForecastReport | null>(null);
   const _forecastLoading = signal<boolean>(false);
+  const _saving = signal<boolean>(false);
+  const _toast = signal<{ type: 'success' | 'info'; message: string } | null>(null);
+
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    if (toastTimer) clearTimeout(toastTimer);
+    _toast.set({ type, message });
+    toastTimer = setTimeout(() => _toast.set(null), 3500);
+  };
+  const clearToast = () => {
+    if (toastTimer) clearTimeout(toastTimer);
+    _toast.set(null);
+  };
 
   // Real-time Firestore sync driven reactively by AuthStore user signal
   effect((onCleanup) => {
@@ -114,14 +127,14 @@ export function useCrmStore() {
 
     const contactsQuery = query(
       collection(db, 'contacts'),
-      orderBy('createdAt', 'desc')
+      where('ownerId', '==', user.uid)
     );
     unsubs.push(
       onSnapshot(
         contactsQuery,
         (snap) => {
-          _contacts.set(
-            snap.docs.map((d) => {
+          const items = snap.docs
+            .map((d) => {
               const data = d.data();
               return {
                 id: d.id,
@@ -135,7 +148,11 @@ export function useCrmStore() {
                 createdAt: toIsoString(data['createdAt']),
               };
             })
-          );
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          _contacts.set(items);
           contactsReady = true;
           markReady();
         },
@@ -148,14 +165,14 @@ export function useCrmStore() {
 
     const dealsQuery = query(
       collection(db, 'deals'),
-      orderBy('updatedAt', 'desc')
+      where('ownerId', '==', user.uid)
     );
     unsubs.push(
       onSnapshot(
         dealsQuery,
         (snap) => {
-          _deals.set(
-            snap.docs.map((d) => {
+          const items = snap.docs
+            .map((d) => {
               const data = d.data();
               return {
                 id: d.id,
@@ -171,7 +188,11 @@ export function useCrmStore() {
                 ownerName: data['ownerName'] ? String(data['ownerName']) : undefined,
               };
             })
-          );
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+          _deals.set(items);
           dealsReady = true;
           markReady();
         },
@@ -184,14 +205,14 @@ export function useCrmStore() {
 
     const activitiesQuery = query(
       collection(db, 'activities'),
-      orderBy('createdAt', 'desc')
+      where('ownerId', '==', user.uid)
     );
     unsubs.push(
       onSnapshot(
         activitiesQuery,
         (snap) => {
-          _activities.set(
-            snap.docs.map((d) => {
+          const items = snap.docs
+            .map((d) => {
               const data = d.data();
               return {
                 id: d.id,
@@ -201,9 +222,14 @@ export function useCrmStore() {
                 summary: String(data['summary'] ?? ''),
                 createdAt: toIsoString(data['createdAt']),
                 authorName: String(data['authorName'] ?? 'Équipe'),
+                ownerId: data['ownerId'] ? String(data['ownerId']) : undefined,
               };
             })
-          );
+            .sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          _activities.set(items);
           activitiesReady = true;
           markReady();
         },
@@ -305,17 +331,20 @@ export function useCrmStore() {
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('contact');
       _contacts.update((list) => [{ id, ...record }, ...list]);
+      showToast(`Contact ${payload.firstName} ${payload.lastName} ajouté.`);
       return id;
     }
 
+    _saving.set(true);
     try {
       const ref = await addDoc(collection(firebase.db, 'contacts'), record);
+      showToast(`Contact ${payload.firstName} ${payload.lastName} ajouté.`);
       return ref.id;
-    } catch (err) {
-      _error.set(
-        `Impossible de créer le contact: ${err instanceof Error ? err.message : String(err)}`
-      );
+    } catch {
+      _error.set('Impossible de créer le contact pour le moment. Vérifiez votre connexion et réessayez.');
       return null;
+    } finally {
+      _saving.set(false);
     }
   };
 
@@ -327,15 +356,18 @@ export function useCrmStore() {
       _contacts.update((list) =>
         list.map((c) => (c.id === contactId ? { ...c, ...patch } : c))
       );
+      showToast('Fiche contact mise à jour.');
       return;
     }
 
+    _saving.set(true);
     try {
       await updateDoc(doc(firebase.db, 'contacts', contactId), patch);
-    } catch (err) {
-      _error.set(
-        `Impossible de mettre à jour le contact: ${err instanceof Error ? err.message : String(err)}`
-      );
+      showToast('Fiche contact mise à jour.');
+    } catch {
+      _error.set('Impossible de mettre à jour ce contact. Réessayez dans un instant.');
+    } finally {
+      _saving.set(false);
     }
   };
 
@@ -346,15 +378,18 @@ export function useCrmStore() {
 
     if (_syncMode() === 'demo' || !firebase.db) {
       _contacts.update((list) => list.filter((c) => c.id !== contactId));
+      showToast('Contact supprimé.', 'info');
       return;
     }
 
+    _saving.set(true);
     try {
       await deleteDoc(doc(firebase.db, 'contacts', contactId));
-    } catch (err) {
-      _error.set(
-        `Impossible de supprimer le contact: ${err instanceof Error ? err.message : String(err)}`
-      );
+      showToast('Contact supprimé.', 'info');
+    } catch {
+      _error.set('Impossible de supprimer ce contact. Réessayez dans un instant.');
+    } finally {
+      _saving.set(false);
     }
   };
 
@@ -371,17 +406,20 @@ export function useCrmStore() {
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('deal');
       _deals.update((list) => [{ id, ...record }, ...list]);
+      showToast(`Opportunité « ${payload.title} » créée.`);
       return id;
     }
 
+    _saving.set(true);
     try {
       const ref = await addDoc(collection(firebase.db, 'deals'), record);
+      showToast(`Opportunité « ${payload.title} » créée.`);
       return ref.id;
-    } catch (err) {
-      _error.set(
-        `Impossible de créer l’opportunité: ${err instanceof Error ? err.message : String(err)}`
-      );
+    } catch {
+      _error.set('Impossible de créer cette opportunité. Vérifiez les champs et réessayez.');
       return null;
+    } finally {
+      _saving.set(false);
     }
   };
 
@@ -441,50 +479,57 @@ export function useCrmStore() {
         probability: nextProbability,
         updatedAt: now,
       });
-    } catch (err) {
-      _error.set(
-        `Impossible de déplacer l’opportunité: ${err instanceof Error ? err.message : String(err)}`
-      );
+      showToast(`Opportunité déplacée vers « ${stageMeta?.label ?? nextStage} ».`);
+    } catch {
+      _error.set('Impossible de déplacer cette opportunité. Réessayez dans un instant.');
     }
   };
 
   const deleteDeal = async (dealId: string): Promise<void> => {
     if (_syncMode() === 'demo' || !firebase.db) {
       _deals.update((list) => list.filter((d) => d.id !== dealId));
+      showToast('Opportunité supprimée.', 'info');
       return;
     }
 
+    _saving.set(true);
     try {
       await deleteDoc(doc(firebase.db, 'deals', dealId));
-    } catch (err) {
-      _error.set(
-        `Impossible de supprimer l’opportunité: ${err instanceof Error ? err.message : String(err)}`
-      );
+      showToast('Opportunité supprimée.', 'info');
+    } catch {
+      _error.set('Impossible de supprimer cette opportunité. Réessayez dans un instant.');
+    } finally {
+      _saving.set(false);
     }
   };
 
   const addActivity = async (payload: NewActivityPayload): Promise<string | null> => {
     const now = new Date().toISOString();
+    const currentUser = authStore.user();
     const record = {
       ...payload,
-      authorName: payload.authorName || authStore.user()?.displayName || 'Commercial',
+      ownerId: payload.ownerId || currentUser?.uid || 'demo-user',
+      authorName: payload.authorName || currentUser?.displayName || 'Commercial',
       createdAt: now,
     };
 
     if (_syncMode() === 'demo' || !firebase.db) {
       const id = generateLocalId('act');
       _activities.update((list) => [{ id, ...record }, ...list]);
+      showToast('Activité enregistrée dans le journal.');
       return id;
     }
 
+    _saving.set(true);
     try {
       const ref = await addDoc(collection(firebase.db, 'activities'), record);
+      showToast('Activité enregistrée dans le journal.');
       return ref.id;
-    } catch (err) {
-      _error.set(
-        `Impossible d’ajouter l’activité: ${err instanceof Error ? err.message : String(err)}`
-      );
+    } catch {
+      _error.set('Impossible d’enregistrer cette activité. Réessayez dans un instant.');
       return null;
+    } finally {
+      _saving.set(false);
     }
   };
 
@@ -502,17 +547,13 @@ export function useCrmStore() {
         return result.data;
       }
 
-      // Demo / offline fallback using the pure local aggregator
       const localReport = buildMonthlyForecastLocal(_deals(), _contacts());
       _forecastReport.set(localReport);
       return localReport;
-    } catch (err) {
-      // Graceful fallback to local computation if Cloud Function isn't deployed yet
+    } catch {
+      // Calcul local transparent sans message d'erreur technique alarmant
       const fallback = buildMonthlyForecastLocal(_deals(), _contacts());
       _forecastReport.set(fallback);
-      _error.set(
-        `Cloud Function indisponible (${err instanceof Error ? err.message : 'offline'}) — prévision calculée localement.`
-      );
       return fallback;
     } finally {
       _forecastLoading.set(false);
@@ -520,28 +561,48 @@ export function useCrmStore() {
   };
 
   const seedDemoDataToFirestore = async (): Promise<void> => {
-    if (!firebase.db) return;
-    const batch = writeBatch(firebase.db);
-    const uid = authStore.user()?.uid || 'demo-user';
-    const author = authStore.user()?.displayName || 'Commercial';
+    const user = authStore.user();
+    if (!firebase.db || !user) return;
 
-    for (const c of SEED_CONTACTS) {
-      const { id, ...rest } = c;
-      batch.set(doc(firebase.db, 'contacts', id), { ...rest, ownerId: uid });
+    _error.set(null);
+    _saving.set(true);
+    try {
+      const batch = writeBatch(firebase.db);
+      const uid = user.uid;
+      const author = user.displayName || 'Commercial';
+
+      for (const c of SEED_CONTACTS) {
+        const { id, ...rest } = c;
+        batch.set(doc(firebase.db, 'contacts', `${uid}_${id}`), {
+          ...rest,
+          ownerId: uid,
+        });
+      }
+      for (const d of SEED_DEALS) {
+        const { id, contactId, ...rest } = d;
+        batch.set(doc(firebase.db, 'deals', `${uid}_${id}`), {
+          ...rest,
+          contactId: contactId ? `${uid}_${contactId}` : '',
+          ownerId: uid,
+          ownerName: author,
+        });
+      }
+      for (const a of SEED_ACTIVITIES) {
+        const { id, contactId, dealId, ...rest } = a;
+        batch.set(doc(firebase.db, 'activities', `${uid}_${id}`), {
+          ...rest,
+          contactId: `${uid}_${contactId}`,
+          dealId: dealId ? `${uid}_${dealId}` : null,
+          ownerId: uid,
+        });
+      }
+      await batch.commit();
+      showToast('Données de démonstration chargées avec succès !');
+    } catch {
+      _error.set('Impossible de charger les données de démonstration. Vérifiez votre connexion et réessayez.');
+    } finally {
+      _saving.set(false);
     }
-    for (const d of SEED_DEALS) {
-      const { id, ...rest } = d;
-      batch.set(doc(firebase.db, 'deals', id), {
-        ...rest,
-        ownerId: uid,
-        ownerName: author,
-      });
-    }
-    for (const a of SEED_ACTIVITIES) {
-      const { id, ...rest } = a;
-      batch.set(doc(firebase.db, 'activities', id), rest);
-    }
-    await batch.commit();
   };
 
   return {
@@ -558,6 +619,8 @@ export function useCrmStore() {
     syncMode: _syncMode.asReadonly(),
     forecastReport: _forecastReport.asReadonly(),
     forecastLoading: _forecastLoading.asReadonly(),
+    saving: _saving.asReadonly(),
+    toast: _toast.asReadonly(),
 
     // Derived computed signals
     filteredContacts,
@@ -576,6 +639,7 @@ export function useCrmStore() {
     setOwnerFilter,
     selectContact,
     clearError,
+    clearToast,
 
     // CRUD & Cloud Function actions
     addContact,

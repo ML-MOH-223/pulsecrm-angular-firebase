@@ -63,10 +63,12 @@ export const onDealWon = onDocumentUpdated('deals/{dealId}', async (event) => {
   const now = new Date().toISOString();
   const batch = db.batch();
 
+  let contactOwnerId = '';
   if (after.contactId) {
     const contactRef = db.collection('contacts').doc(after.contactId);
     const contactSnap = await contactRef.get();
     if (contactSnap.exists) {
+      contactOwnerId = String(contactSnap.data()?.['ownerId'] ?? '');
       batch.update(contactRef, { status: 'customer' });
     }
   }
@@ -79,6 +81,7 @@ export const onDealWon = onDocumentUpdated('deals/{dealId}', async (event) => {
     summary: `Automatisation onDealWon : "${after.title}" (${Number(after.amount ?? 0).toLocaleString('fr-FR')} €) gagné — statut du contact passé à Client.`,
     createdAt: now,
     authorName: 'PulseCRM Automation',
+    ownerId: after.ownerId || contactOwnerId,
   });
 
   await batch.commit();
@@ -102,9 +105,10 @@ export const calculateMonthlyForecast = onCall(async (request): Promise<MonthlyF
     );
   }
 
+  const uid = request.auth.uid;
   const [dealsSnap, contactsSnap] = await Promise.all([
-    db.collection('deals').get(),
-    db.collection('contacts').get(),
+    db.collection('deals').where('ownerId', '==', uid).get(),
+    db.collection('contacts').where('ownerId', '==', uid).get(),
   ]);
 
   const contactOwnerMap = new Map<string, string>();

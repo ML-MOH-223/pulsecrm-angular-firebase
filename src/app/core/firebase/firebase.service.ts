@@ -5,6 +5,9 @@ import {
   Firestore,
   connectFirestoreEmulator,
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
 } from 'firebase/firestore';
 import {
   Functions,
@@ -39,9 +42,25 @@ export class FirebaseService {
       return;
     }
 
-    this.app = getApps().length > 0 ? getApp() : initializeApp(cfg);
+    const alreadyInitialized = getApps().length > 0;
+    this.app = alreadyInitialized ? getApp() : initializeApp(cfg);
     this.auth = getAuth(this.app);
-    this.db = getFirestore(this.app);
+
+    // Enable offline persistent cache for unstable 3G/4G connections
+    if (!alreadyInitialized) {
+      try {
+        this.db = initializeFirestore(this.app, {
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager(),
+          }),
+        });
+      } catch {
+        this.db = getFirestore(this.app);
+      }
+    } else {
+      this.db = getFirestore(this.app);
+    }
+
     this.functions = getFunctions(this.app, 'europe-west1');
 
     if (environment.useEmulators) {

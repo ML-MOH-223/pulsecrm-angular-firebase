@@ -8,21 +8,33 @@ import { CRM_STORE } from '../../core/state/crm.store';
   standalone: true,
   imports: [ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown.escape)': 'closed.emit()',
+  },
   template: `
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      class="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/50 px-3 pt-4 pb-4 backdrop-blur-sm sm:items-center sm:p-4"
       (click)="closed.emit()"
     >
       <div
-        class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        class="animate-fade-in flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-modal ring-1 ring-slate-900/10 dark:bg-[#162033] dark:ring-slate-700"
         (click)="$event.stopPropagation()"
       >
-        <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h2 class="text-base font-semibold text-slate-900">Nouvelle opportunité</h2>
+        <header class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60 sm:px-5">
+          <div class="flex min-w-0 items-center gap-2.5">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </span>
+            <h2 class="truncate font-display text-sm font-bold text-slate-900 dark:text-white sm:text-base">
+              Nouvelle opportunité
+            </h2>
+          </div>
           <button
             type="button"
             (click)="closed.emit()"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-800 sm:h-9 sm:w-9"
             aria-label="Fermer"
           >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -31,107 +43,116 @@ import { CRM_STORE } from '../../core/state/crm.store';
           </button>
         </header>
 
-        <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 p-6">
-          <div>
-            <label class="mb-1 block text-xs font-semibold text-slate-700">Titre du deal *</label>
-            <input
-              type="text"
-              formControlName="title"
-              placeholder="Ex: Licence Enterprise 50 utilisateurs"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
+        <form [formGroup]="form" (ngSubmit)="submit()" class="flex min-h-0 flex-1 flex-col">
+          <div class="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Titre du deal *</label>
+                <input
+                  type="text"
+                  formControlName="title"
+                  placeholder="Ex: Licence Enterprise 50 utilisateurs"
+                  class="ds-input"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Entreprise *</label>
+                <input
+                  type="text"
+                  formControlName="company"
+                  placeholder="Ex: NovaTech SAS"
+                  class="ds-input"
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Contact associé</label>
+                <select
+                  formControlName="contactId"
+                  (change)="onContactChange()"
+                  class="ds-input"
+                >
+                  <option value="">— Sélectionner un contact —</option>
+                  @for (contact of store.contacts(); track contact.id) {
+                    <option [value]="contact.id">
+                      {{ contact.firstName }} {{ contact.lastName }} ({{ contact.company }})
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Date de closing estimée</label>
+                <input
+                  type="date"
+                  formControlName="expectedCloseDate"
+                  class="ds-input"
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Montant (€) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="500"
+                  formControlName="amount"
+                  class="ds-input tabular-nums"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Étape</label>
+                <select
+                  formControlName="stage"
+                  (change)="onStageChange()"
+                  class="ds-input"
+                >
+                  @for (stage of stages; track stage.id) {
+                    <option [value]="stage.id">{{ stage.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Probabilité (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  formControlName="probability"
+                  class="ds-input tabular-nums"
+                />
+              </div>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-slate-700">Contact associé</label>
-              <select
-                formControlName="contactId"
-                (change)="onContactChange()"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              >
-                <option value="">— Sélectionner un contact —</option>
-                @for (contact of store.contacts(); track contact.id) {
-                  <option [value]="contact.id">
-                    {{ contact.firstName }} {{ contact.lastName }} ({{ contact.company }})
-                  </option>
-                }
-              </select>
-            </div>
-
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-slate-700">Entreprise *</label>
-              <input
-                type="text"
-                formControlName="company"
-                placeholder="Ex: NovaTech SAS"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-slate-700">Montant (€) *</label>
-              <input
-                type="number"
-                min="0"
-                step="500"
-                formControlName="amount"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-slate-700">Étape</label>
-              <select
-                formControlName="stage"
-                (change)="onStageChange()"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              >
-                @for (stage of stages; track stage.id) {
-                  <option [value]="stage.id">{{ stage.label }}</option>
-                }
-              </select>
-            </div>
-
-            <div>
-              <label class="mb-1 block text-xs font-semibold text-slate-700">Probabilité (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                formControlName="probability"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="mb-1 block text-xs font-semibold text-slate-700">Date de closing estimée</label>
-            <input
-              type="date"
-              formControlName="expectedCloseDate"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
-          </div>
-
-          <footer class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <footer class="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-end sm:gap-2.5 sm:px-5">
             <button
               type="button"
               (click)="closed.emit()"
-              class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              class="ds-btn ds-btn-secondary w-full sm:w-auto"
             >
               Annuler
             </button>
             <button
               type="submit"
-              [disabled]="form.invalid"
-              class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              [disabled]="store.saving()"
+              class="ds-btn ds-btn-primary w-full sm:w-auto"
             >
-              Créer l’opportunité
+              {{ store.saving() ? 'Enregistrement...' : 'Créer l’opportunité' }}
             </button>
           </footer>
+          @if (form.touched && form.invalid) {
+            <p class="bg-rose-50 px-5 py-2 text-xs font-medium text-rose-700">
+              Veuillez renseigner au minimum un titre, une entreprise et un montant valide.
+            </p>
+          }
         </form>
       </div>
     </div>
@@ -171,6 +192,7 @@ export class DealFormModalComponent {
   }
 
   async submit(): Promise<void> {
+    this.form.markAllAsTouched();
     if (this.form.invalid) return;
     const raw = this.form.getRawValue();
     await this.store.addDeal({
