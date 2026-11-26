@@ -75,13 +75,19 @@ import { AuthStore } from '../../core/auth/auth.store';
           </div>
 
           @if (authStore.error(); as err) {
-            <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700">
+            <div
+              role="alert"
+              class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-200"
+            >
               {{ err }}
             </div>
           }
 
           @if (authStore.infoMessage(); as info) {
-            <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+            <div
+              role="status"
+              class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
+            >
               {{ info }}
             </div>
           }

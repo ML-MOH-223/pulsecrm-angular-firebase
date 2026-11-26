@@ -37,13 +37,14 @@ export class FirebaseService {
     this.app = alreadyInitialized ? getApp() : initializeApp(cfg);
     this.auth = getAuth(this.app);
 
-    // Enable offline persistent cache for unstable 3G/4G connections
+    // Enable offline persistent cache and auto-detect long polling for unstable 3G/4G or QUIC networks
     if (!alreadyInitialized) {
       try {
         this.db = initializeFirestore(this.app, {
           localCache: persistentLocalCache({
             tabManager: persistentMultipleTabManager(),
           }),
+          experimentalAutoDetectLongPolling: true,
         });
       } catch (err) {
         logger.warn(

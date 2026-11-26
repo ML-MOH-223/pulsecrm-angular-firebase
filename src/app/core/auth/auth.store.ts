@@ -111,16 +111,37 @@ export class AuthStore {
     this._infoMessage.set(null);
     this._loading.set(true);
     const requestId = createRequestId('auth');
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
-      const provider = new GoogleAuthProvider();
       await signInWithPopup(this.firebase.auth, provider);
       logger.info('Google sign-in succeeded', { module: 'AuthStore', requestId });
     } catch (err) {
       const code = (err as { code?: string })?.code ?? '';
       if (code === 'auth/popup-blocked') {
-        logger.warn('Google popup blocked, falling back to redirect', { module: 'AuthStore', requestId });
-        const provider = new GoogleAuthProvider();
-        await signInWithRedirect(this.firebase.auth, provider);
+        logger.warn('Google popup blocked, falling back to redirect', {
+          module: 'AuthStore',
+          requestId,
+        });
+        this._infoMessage.set(
+          'Fenêtre Google bloquée par le navigateur — redirection automatique en cours...'
+        );
+        try {
+          await signInWithRedirect(this.firebase.auth, provider);
+          return;
+        } catch (redirectErr) {
+          this.handleAuthFailure('signInWithRedirect', redirectErr, requestId);
+          return;
+        }
+      }
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        logger.warn('Google popup closed before completion', {
+          module: 'AuthStore',
+          requestId,
+          providerCode: code,
+        });
+        this._error.set(this.formatAuthError(err));
         return;
       }
       this.handleAuthFailure('signInWithGoogle', err, requestId);
@@ -259,7 +280,7 @@ export class AuthStore {
       cause: err,
     });
     logger.error(`Auth failure in ${action}`, { module: 'AuthStore', requestId }, appErr);
-    this._error.set(userMessage);
+    this._error.set(`${userMessage} (réf. ${requestId})`);
   }
 
   private formatAuthError(err: unknown): string {
@@ -280,7 +301,9 @@ export class AuthStore {
       'auth/too-many-requests':
         'Trop de tentatives échouées. Patientez quelques minutes ou réinitialisez votre mot de passe.',
       'auth/popup-closed-by-user':
-        'La fenêtre de connexion Google a été fermée avant la fin.',
+        'La fenêtre de connexion Google a été fermée avant la fin. Réessayez ou connectez-vous par email.',
+      'auth/cancelled-popup-request':
+        'Une fenêtre de connexion Google est déjà ouverte. Finalisez-la ou réessayez.',
       'auth/popup-blocked':
         'Votre navigateur a bloqué la fenêtre Google. Autorisez les pop-ups ou utilisez votre email.',
       'auth/network-request-failed':
