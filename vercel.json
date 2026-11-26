@@ -3,7 +3,7 @@
   "outputDirectory": "dist/pulse-crm/browser",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!.*\\.).*)",
       "destination": "/index.html"
     }
   ]
