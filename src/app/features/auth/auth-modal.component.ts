@@ -24,20 +24,10 @@ import { AuthStore } from '../../core/auth/auth.store';
 
         <div class="relative flex items-center gap-3">
           <img
-            src="pulsecrm-icon.png"
-            alt="PulseCRM"
-            width="44"
-            height="44"
-            class="h-11 w-11 object-contain"
+            src="pulsecrm-logo.png"
+            alt="PulseCRM — Customer Relationship Platform"
+            class="h-11 w-auto rounded-xl bg-white px-3 py-1.5 shadow-lg"
           />
-          <div>
-            <span class="font-display text-2xl font-extrabold tracking-tight text-white">
-              pulse<span class="text-sky-400">CRM</span>
-            </span>
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Customer Relationship Platform
-            </p>
-          </div>
         </div>
 
         <div class="relative max-w-md space-y-5">
@@ -69,18 +59,11 @@ import { AuthStore } from '../../core/auth/auth.store';
       <div class="flex flex-1 min-h-screen items-center justify-center p-4 sm:p-10">
         <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-card ring-1 ring-slate-900/5 dark:bg-[#162033] dark:ring-slate-700/70 sm:p-8">
           <div class="text-center lg:text-left">
-            <div class="mb-4 flex items-center justify-center gap-2 lg:hidden">
-              <img
-                src="pulsecrm-icon.png"
-                alt="PulseCRM"
-                width="36"
-                height="36"
-                class="h-9 w-9 object-contain"
-              />
-              <span class="font-display text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                pulse<span class="text-sky-500 dark:text-sky-400">CRM</span>
-              </span>
-            </div>
+            <img
+              src="pulsecrm-logo.png"
+              alt="PulseCRM"
+              class="mx-auto mb-4 h-11 w-auto rounded-xl bg-white px-2.5 py-1 shadow-sm ring-1 ring-slate-900/5 lg:hidden"
+            />
             <h1 class="font-display text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
               {{ mode() === 'login' ? 'Bon retour sur PulseCRM' : 'Créer votre espace' }}
             </h1>
