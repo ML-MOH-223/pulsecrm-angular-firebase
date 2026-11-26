@@ -14,7 +14,10 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { AuthStore } from '../auth/auth.store';
+import { normalizeError } from '../errors/app-error';
 import { FirebaseService } from '../firebase/firebase.service';
+import { logger } from '../observability/logger';
+import { createRequestId } from '../observability/request-id';
 import {
   Activity,
   Contact,
@@ -336,12 +339,27 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('contact');
+    const startedAt = performance.now();
     try {
       const ref = await addDoc(collection(firebase.db, 'contacts'), record);
+      logger.info('Contact created', {
+        module: 'CrmStore',
+        requestId,
+        contactId: ref.id,
+        durationMs: performance.now() - startedAt,
+      });
       showToast(`Contact ${payload.firstName} ${payload.lastName} ajouté.`);
       return ref.id;
-    } catch {
-      _error.set('Impossible de créer le contact pour le moment. Vérifiez votre connexion et réessayez.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de créer le contact pour le moment. Vérifiez votre connexion et réessayez.',
+        requestId,
+        context: { action: 'addContact' },
+      });
+      logger.error('Failed to create contact', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
       return null;
     } finally {
       _saving.set(false);
@@ -361,11 +379,20 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('contact');
     try {
       await updateDoc(doc(firebase.db, 'contacts', contactId), patch);
+      logger.info('Contact updated', { module: 'CrmStore', requestId, contactId });
       showToast('Fiche contact mise à jour.');
-    } catch {
-      _error.set('Impossible de mettre à jour ce contact. Réessayez dans un instant.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de mettre à jour ce contact. Réessayez dans un instant.',
+        requestId,
+        context: { action: 'updateContact', contactId },
+      });
+      logger.error('Failed to update contact', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
@@ -383,11 +410,20 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('contact');
     try {
       await deleteDoc(doc(firebase.db, 'contacts', contactId));
+      logger.info('Contact deleted', { module: 'CrmStore', requestId, contactId });
       showToast('Contact supprimé.', 'info');
-    } catch {
-      _error.set('Impossible de supprimer ce contact. Réessayez dans un instant.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de supprimer ce contact. Réessayez dans un instant.',
+        requestId,
+        context: { action: 'deleteContact', contactId },
+      });
+      logger.error('Failed to delete contact', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
@@ -411,12 +447,21 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('deal');
     try {
       const ref = await addDoc(collection(firebase.db, 'deals'), record);
+      logger.info('Deal created', { module: 'CrmStore', requestId, dealId: ref.id });
       showToast(`Opportunité « ${payload.title} » créée.`);
       return ref.id;
-    } catch {
-      _error.set('Impossible de créer cette opportunité. Vérifiez les champs et réessayez.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de créer cette opportunité. Vérifiez les champs et réessayez.',
+        requestId,
+        context: { action: 'addDeal' },
+      });
+      logger.error('Failed to create deal', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
       return null;
     } finally {
       _saving.set(false);
@@ -473,15 +518,30 @@ export function useCrmStore() {
       return;
     }
 
+    const requestId = createRequestId('deal');
     try {
       await updateDoc(doc(firebase.db, 'deals', dealId), {
         stage: nextStage,
         probability: nextProbability,
         updatedAt: now,
       });
+      logger.info('Deal stage moved', {
+        module: 'CrmStore',
+        requestId,
+        dealId,
+        fromStage: existing.stage,
+        toStage: nextStage,
+      });
       showToast(`Opportunité déplacée vers « ${stageMeta?.label ?? nextStage} ».`);
-    } catch {
-      _error.set('Impossible de déplacer cette opportunité. Réessayez dans un instant.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de déplacer cette opportunité. Réessayez dans un instant.',
+        requestId,
+        context: { action: 'moveDealStage', dealId, nextStage },
+      });
+      logger.error('Failed to move deal stage', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     }
   };
 
@@ -493,11 +553,20 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('deal');
     try {
       await deleteDoc(doc(firebase.db, 'deals', dealId));
+      logger.info('Deal deleted', { module: 'CrmStore', requestId, dealId });
       showToast('Opportunité supprimée.', 'info');
-    } catch {
-      _error.set('Impossible de supprimer cette opportunité. Réessayez dans un instant.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de supprimer cette opportunité. Réessayez dans un instant.',
+        requestId,
+        context: { action: 'deleteDeal', dealId },
+      });
+      logger.error('Failed to delete deal', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }
@@ -521,12 +590,21 @@ export function useCrmStore() {
     }
 
     _saving.set(true);
+    const requestId = createRequestId('act');
     try {
       const ref = await addDoc(collection(firebase.db, 'activities'), record);
+      logger.info('Activity created', { module: 'CrmStore', requestId, activityId: ref.id });
       showToast('Activité enregistrée dans le journal.');
       return ref.id;
-    } catch {
-      _error.set('Impossible d’enregistrer cette activité. Réessayez dans un instant.');
+    } catch (err) {
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible d’enregistrer cette activité. Réessayez dans un instant.',
+        requestId,
+        context: { action: 'addActivity', contactId: payload.contactId },
+      });
+      logger.error('Failed to create activity', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
       return null;
     } finally {
       _saving.set(false);
@@ -536,13 +614,20 @@ export function useCrmStore() {
   const requestMonthlyForecast = async (): Promise<MonthlyForecastReport | null> => {
     _forecastLoading.set(true);
     _error.set(null);
+    const requestId = createRequestId('fcst');
+    const startedAt = performance.now();
     try {
       if (_syncMode() === 'firestore' && firebase.functions) {
-        const callable = httpsCallable<void, MonthlyForecastReport>(
+        const callable = httpsCallable<{ requestId: string }, MonthlyForecastReport>(
           firebase.functions,
           'calculateMonthlyForecast'
         );
-        const result = await callable();
+        const result = await callable({ requestId });
+        logger.info('Cloud monthly forecast succeeded', {
+          module: 'CrmStore',
+          requestId,
+          durationMs: performance.now() - startedAt,
+        });
         _forecastReport.set(result.data);
         return result.data;
       }
@@ -550,8 +635,12 @@ export function useCrmStore() {
       const localReport = buildMonthlyForecastLocal(_deals(), _contacts());
       _forecastReport.set(localReport);
       return localReport;
-    } catch {
-      // Calcul local transparent sans message d'erreur technique alarmant
+    } catch (err) {
+      logger.warn(
+        'Cloud forecast unavailable, falling back to local aggregator',
+        { module: 'CrmStore', requestId, durationMs: performance.now() - startedAt },
+        err
+      );
       const fallback = buildMonthlyForecastLocal(_deals(), _contacts());
       _forecastReport.set(fallback);
       return fallback;
@@ -597,9 +686,18 @@ export function useCrmStore() {
         });
       }
       await batch.commit();
+      logger.info('Demo data seeded to Firestore', { module: 'CrmStore', requestId: createRequestId('seed') });
       showToast('Données de démonstration chargées avec succès !');
-    } catch {
-      _error.set('Impossible de charger les données de démonstration. Vérifiez votre connexion et réessayez.');
+    } catch (err) {
+      const requestId = createRequestId('seed');
+      const appErr = normalizeError(err, {
+        code: 'DATABASE_ERROR',
+        userMessage: 'Impossible de charger les données de démonstration. Vérifiez votre connexion et réessayez.',
+        requestId,
+        context: { action: 'seedDemoDataToFirestore' },
+      });
+      logger.error('Failed to seed demo data', { module: 'CrmStore', requestId }, appErr);
+      _error.set(`${appErr.userMessage} (réf. ${requestId})`);
     } finally {
       _saving.set(false);
     }

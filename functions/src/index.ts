@@ -32,7 +32,12 @@ interface RepForecast {
   wonAmount: number;
 }
 
+interface MonthlyForecastRequest {
+  requestId?: string;
+}
+
 interface MonthlyForecastReport {
+  requestId: string;
   month: string;
   generatedAt: string;
   totalPipelineAmount: number;
@@ -97,19 +102,28 @@ export const onDealWon = onDocumentUpdated('deals/{dealId}', async (event) => {
  * Agrège les prévisions de ventes (pipeline ouvert, revenu pondéré, deals gagnés)
  * par commercial et retourne un rapport JSON structuré.
  */
-export const calculateMonthlyForecast = onCall(async (request): Promise<MonthlyForecastReport> => {
-  if (!request.auth) {
-    throw new HttpsError(
-      'unauthenticated',
-      'Vous devez être connecté pour générer les prévisions commerciales.'
-    );
-  }
+export const calculateMonthlyForecast = onCall<MonthlyForecastRequest>(
+  async (request): Promise<MonthlyForecastReport> => {
+    const startedAt = Date.now();
+    const requestId =
+      typeof request.data?.requestId === 'string' && request.data.requestId.trim().length > 0
+        ? request.data.requestId.trim()
+        : `fn_${Date.now().toString(36)}`;
 
-  const uid = request.auth.uid;
-  const [dealsSnap, contactsSnap] = await Promise.all([
-    db.collection('deals').where('ownerId', '==', uid).get(),
-    db.collection('contacts').where('ownerId', '==', uid).get(),
-  ]);
+    if (!request.auth) {
+      logger.warn('calculateMonthlyForecast rejected: unauthenticated', { requestId });
+      throw new HttpsError(
+        'unauthenticated',
+        'Vous devez être connecté pour générer les prévisions commerciales.'
+      );
+    }
+
+    const uid = request.auth.uid;
+    logger.info('calculateMonthlyForecast started', { requestId, userId: uid });
+    const [dealsSnap, contactsSnap] = await Promise.all([
+      db.collection('deals').where('ownerId', '==', uid).get(),
+      db.collection('contacts').where('ownerId', '==', uid).get(),
+    ]);
 
   const contactOwnerMap = new Map<string, string>();
   contactsSnap.forEach((docSnap) => {
@@ -177,7 +191,8 @@ export const calculateMonthlyForecast = onCall(async (request): Promise<MonthlyF
     }))
     .sort((a, b) => b.weightedForecast - a.weightedForecast);
 
-  return {
+  const report: MonthlyForecastReport = {
+    requestId,
     month,
     generatedAt: now.toISOString(),
     totalPipelineAmount: Math.round(totalPipelineAmount * 100) / 100,
@@ -185,4 +200,14 @@ export const calculateMonthlyForecast = onCall(async (request): Promise<MonthlyF
     totalWonAmount: Math.round(totalWonAmount * 100) / 100,
     byRep,
   };
+
+  logger.info('calculateMonthlyForecast completed', {
+    requestId,
+    userId: uid,
+    durationMs: Date.now() - startedAt,
+    dealsCount: dealsSnap.size,
+    repsCount: byRep.length,
+  });
+
+  return report;
 });

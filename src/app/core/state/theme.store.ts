@@ -1,4 +1,5 @@
 import { Injectable, computed, effect, signal } from '@angular/core';
+import { logger } from '../observability/logger';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -20,8 +21,8 @@ export class ThemeStore {
       if (typeof localStorage !== 'undefined') {
         try {
           localStorage.setItem(STORAGE_KEY, this._mode());
-        } catch {
-          // Ignore storage quota / privacy mode errors
+        } catch (err) {
+          logger.warn('Failed to persist theme preference in localStorage', { module: 'ThemeStore' }, err);
         }
       }
     });
@@ -38,8 +39,8 @@ export class ThemeStore {
       if (saved === 'dark' || saved === 'light') {
         return saved;
       }
-    } catch {
-      // Ignore storage access errors
+    } catch (err) {
+      logger.warn('Failed to read theme preference from localStorage', { module: 'ThemeStore' }, err);
     }
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }

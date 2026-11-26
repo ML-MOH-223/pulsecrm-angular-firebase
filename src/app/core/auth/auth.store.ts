@@ -14,6 +14,9 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { FirebaseService } from '../firebase/firebase.service';
+import { AppError } from '../errors/app-error';
+import { logger } from '../observability/logger';
+import { createRequestId } from '../observability/request-id';
 
 export interface CrmUser {
   uid: string;
@@ -63,22 +66,27 @@ export class AuthStore {
   constructor() {
     if (!this.firebase.isConfigured || !this.firebase.auth) {
       this._user.set(DEMO_USER);
+      logger.setActor(DEMO_USER.uid);
       this._loading.set(false);
       return;
     }
 
-    getRedirectResult(this.firebase.auth).catch((err) => {
-      this._error.set(this.formatAuthError(err));
+    getRedirectResult(this.firebase.auth).catch((err: unknown) => {
+      const requestId = createRequestId('auth');
+      this.handleAuthFailure('getRedirectResult', err, requestId);
     });
 
     const unsubscribe = onAuthStateChanged(
       this.firebase.auth,
       (fbUser) => {
-        this._user.set(fbUser ? mapFirebaseUser(fbUser) : null);
+        const mapped = fbUser ? mapFirebaseUser(fbUser) : null;
+        this._user.set(mapped);
+        logger.setActor(mapped?.uid ?? null);
         this._loading.set(false);
       },
       (err) => {
-        this._error.set(this.formatAuthError(err));
+        const requestId = createRequestId('auth');
+        this.handleAuthFailure('onAuthStateChanged', err, requestId);
         this._loading.set(false);
       }
     );
@@ -102,17 +110,20 @@ export class AuthStore {
     this._error.set(null);
     this._infoMessage.set(null);
     this._loading.set(true);
+    const requestId = createRequestId('auth');
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(this.firebase.auth, provider);
+      logger.info('Google sign-in succeeded', { module: 'AuthStore', requestId });
     } catch (err) {
       const code = (err as { code?: string })?.code ?? '';
       if (code === 'auth/popup-blocked') {
+        logger.warn('Google popup blocked, falling back to redirect', { module: 'AuthStore', requestId });
         const provider = new GoogleAuthProvider();
         await signInWithRedirect(this.firebase.auth, provider);
         return;
       }
-      this._error.set(this.formatAuthError(err));
+      this.handleAuthFailure('signInWithGoogle', err, requestId);
     } finally {
       this._loading.set(false);
     }
@@ -232,6 +243,23 @@ export class AuthStore {
     } catch (err) {
       this._error.set(this.formatAuthError(err));
     }
+  }
+
+  private handleAuthFailure(action: string, err: unknown, requestId: string): void {
+    const providerCode = (err as { code?: string })?.code ?? '';
+    const userMessage = this.formatAuthError(err);
+    const appErr = new AppError(`Auth action ${action} failed`, {
+      code:
+        providerCode === 'auth/unauthorized-domain'
+          ? 'AUTH_UNAUTHORIZED_DOMAIN'
+          : 'AUTH_ERROR',
+      userMessage,
+      requestId,
+      context: { action, providerCode },
+      cause: err,
+    });
+    logger.error(`Auth failure in ${action}`, { module: 'AuthStore', requestId }, appErr);
+    this._error.set(userMessage);
   }
 
   private formatAuthError(err: unknown): string {

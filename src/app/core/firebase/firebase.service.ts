@@ -15,6 +15,7 @@ import {
   getFunctions,
 } from 'firebase/functions';
 import { environment } from '../../../environments/environment';
+import { logger } from '../observability/logger';
 
 @Injectable({ providedIn: 'root' })
 export class FirebaseService {
@@ -54,7 +55,12 @@ export class FirebaseService {
             tabManager: persistentMultipleTabManager(),
           }),
         });
-      } catch {
+      } catch (err) {
+        logger.warn(
+          'IndexedDB persistent cache unavailable, falling back to default Firestore instance',
+          { module: 'FirebaseService' },
+          err
+        );
         this.db = getFirestore(this.app);
       }
     } else {
